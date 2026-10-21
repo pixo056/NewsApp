@@ -119,7 +119,7 @@ public class SecurityConfig {
         ) throws jakarta.servlet.ServletException, IOException {
           if (req.getMethod().equals("POST") && req.getRequestURI().equals("/api/auth/login")) {
             try {
-              rates.check("login:" + req.getRemoteAddr(), 30, Duration.ofMinutes(15));
+              rates.check("login:" + ClientAddress.of(req), 30, Duration.ofMinutes(15));
             } catch (ApiException e) {
               json(res, 429, e.getMessage());
               return;

@@ -15,4 +15,4 @@ Java **25**, Spring Boot **3.5.16**, Maven, Spring Web/Security/JDBC/Validation,
 
 Переменные окружения и команды разработки — в корневом README. Секреты не записываются в исходники.
 
-`scripts/test-backend.ps1` запускает 12 интеграционных тестов с настоящей PostgreSQL в отдельной базе `newsapp_test`, включая запрет удалённого доступа к тестовой почте. `scripts/smoke-local.mjs` проверяет настоящий HTTP-путь через frontend proxy.
+`scripts/test-backend.ps1` запускает интеграционные и модульные тесты с настоящей PostgreSQL в отдельной базе `newsapp_test`, включая запрет удалённого доступа к тестовой почте. `scripts/smoke-local.mjs` проверяет настоящий HTTP-путь через frontend proxy.

@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { isLoopback, networkAccess } from './config/network-access';
+import { isLoopback, networkAccess, proxyClientHeaders } from './config/network-access';
 
 const allowRequest = networkAccess(process.env.NEWSAPP_LAN_IP, process.env.NEWSAPP_LAN_PREFIX);
 
@@ -69,10 +69,9 @@ export default defineConfig({
         configure(proxy) {
           proxy.on('proxyReq', (proxyRequest, request) => {
             // Overwrite any client-supplied marker; Spring only listens on loopback.
-            proxyRequest.setHeader(
-              'X-NewsApp-Mailbox',
-              isLoopback(request.socket.remoteAddress) ? 'local' : 'remote',
-            );
+            for (const [name, value] of Object.entries(proxyClientHeaders(request))) {
+              proxyRequest.setHeader(name, value);
+            }
           });
         },
       },

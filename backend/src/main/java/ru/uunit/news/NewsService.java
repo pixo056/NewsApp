@@ -307,12 +307,11 @@ public class NewsService {
     db.queryForObject("SELECT id FROM app_users WHERE id=? FOR UPDATE", UUID.class, user.id());
     Map<String, Object> community = null;
     if (input.communityId != null) {
-      community = communities.require(input.communityId);
-      db.queryForObject(
-        "SELECT id FROM communities WHERE id=? FOR UPDATE",
-        UUID.class,
-        input.communityId
-      );
+      community = db
+        .queryForList("SELECT * FROM communities WHERE id=? FOR UPDATE", input.communityId)
+        .stream()
+        .findFirst()
+        .orElseThrow(ApiException::missing);
     }
     Timestamp day = Timestamp.from(
       LocalDate.now(ZoneId.of("Asia/Yekaterinburg"))

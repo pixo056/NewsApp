@@ -25,6 +25,7 @@ import {
 import { useApp } from '../app/context';
 import { api, json, upload } from '../api/client';
 import { useResource, useUnsavedChanges } from '../api/hooks';
+import { validateNewsDraft, validateNewsMedia } from '../domain/news-validation';
 import { categories } from '../data/categories';
 import type { MediaAsset, Post, Report, User } from '../domain/types';
 import {
@@ -55,6 +56,7 @@ export function ComposePage() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [dirty, setDirty] = useState(false);
+  const [touched, setTouched] = useState({ title: false, text: false, source: false });
   useUnsavedChanges(dirty);
   useEffect(() => {
     const p = original.data;
@@ -66,6 +68,7 @@ export function ComposePage() {
     setSource(p.source);
     setMedia(p.media);
     setDirty(false);
+    setTouched({ title: false, text: false, source: false });
   }, [original.data]);
   useEffect(() => {
     if (!id) {
@@ -76,20 +79,19 @@ export function ComposePage() {
       setSource('');
       setMedia([]);
       setDirty(false);
+      setTouched({ title: false, text: false, source: false });
     }
   }, [id]);
   const selected = communities.find((c) => c.id === communityId);
   const video = media.some((m) => m.kind === 'video');
+  const fieldErrors = validateNewsDraft({ title, text, source, hasVideo: video });
   async function choose(files: FileList | null) {
     if (!files) return;
     const chosen = [...files];
-    const incomingVideo = chosen.some((f) => /\.(mp4|mov)$/i.test(f.name));
-    if (
-      (incomingVideo && (chosen.length !== 1 || media.length > 0)) ||
-      (video && chosen.length > 0) ||
-      (!incomingVideo && media.length + chosen.length > 4)
-    ) {
-      setError('Прикрепите до четырёх фото либо одно видео.');
+    if (!chosen.length) return;
+    const mediaError = validateNewsMedia(chosen, media);
+    if (mediaError) {
+      setError(mediaError);
       return;
     }
     setUploading(true);
@@ -122,9 +124,15 @@ export function ComposePage() {
         <div className="editor-grid">
           <form
             className="panel editor"
+            noValidate
             onChange={() => setDirty(true)}
             onSubmit={async (e) => {
               e.preventDefault();
+              setTouched({ title: true, text: true, source: true });
+              if (Object.keys(fieldErrors).length) {
+                setError('Проверьте выделенные поля перед отправкой.');
+                return;
+              }
               setBusy(true);
               setError('');
               try {
@@ -133,7 +141,7 @@ export function ComposePage() {
                   text,
                   category,
                   communityId: communityId || null,
-                  source,
+                  source: source.trim(),
                   mediaIds: media.map((m) => m.id),
                 };
                 const result = await json<{ id: string }>(
@@ -194,9 +202,19 @@ export function ComposePage() {
                   placeholder="Самое важное — в одной строке"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  maxLength={200}
+                  onBlur={() => setTouched((old) => ({ ...old, title: true }))}
+                  maxLength={300}
+                  aria-invalid={touched.title && !!fieldErrors.title}
+                  aria-describedby="news-title-count news-title-error"
                 />
-                <span className="field-counter">{Array.from(title).length} / 150 · минимум 10</span>
+                <span className="field-counter" id="news-title-count">
+                  {Array.from(title).length} / 150 · минимум 10
+                </span>
+                {touched.title && fieldErrors.title && (
+                  <span className="form-error" id="news-title-error" role="alert">
+                    {fieldErrors.title}
+                  </span>
+                )}
               </label>
               <label className="form-field">
                 Текст новости
@@ -206,16 +224,25 @@ export function ComposePage() {
                   value={text}
                   maxLength={20000}
                   onChange={(e) => setText(e.target.value)}
+                  onBlur={() => setTouched((old) => ({ ...old, text: true }))}
+                  required={!video}
+                  aria-invalid={touched.text && !!fieldErrors.text}
+                  aria-describedby="news-text-count news-text-error"
                 />
-                <span className="field-counter">
+                <span className="field-counter" id="news-text-count">
                   {Array.from(text).length.toLocaleString('ru')} / 10 000 · минимум 50 без видео
                 </span>
+                {touched.text && fieldErrors.text && (
+                  <span className="form-error" id="news-text-error" role="alert">
+                    {fieldErrors.text}
+                  </span>
+                )}
               </label>
             </div>
             <div className="editor-section">
               <h2>Добавьте настроение</h2>
               <p className="muted">
-                До 4 фото по 10 МиБ либо одно видео до 100 МиБ, 60 секунд и 1080p.
+                До 4 фото по 10 МиБ либо одно видео до 200 МиБ, 3 минут и 1080p.
               </p>
               <div className="attachment-grid">
                 {media.map((m) => (
@@ -276,8 +303,16 @@ export function ComposePage() {
                   value={source}
                   maxLength={2000}
                   onChange={(e) => setSource(e.target.value)}
+                  onBlur={() => setTouched((old) => ({ ...old, source: true }))}
+                  aria-invalid={touched.source && !!fieldErrors.source}
+                  aria-describedby="news-source-error"
                   placeholder="https://…"
                 />
+                {touched.source && fieldErrors.source && (
+                  <span className="form-error" id="news-source-error" role="alert">
+                    {fieldErrors.source}
+                  </span>
+                )}
               </label>
               <p className="field-note">Укажите источник, если используете чужие материалы.</p>
             </div>

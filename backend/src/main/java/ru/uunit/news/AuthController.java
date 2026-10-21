@@ -75,7 +75,7 @@ public class AuthController {
 
   @PostMapping("/auth/register")
   Map<String, String> register(@Valid @RequestBody Registration body, HttpServletRequest request) {
-    rates.check("register:" + request.getRemoteAddr(), 10, Duration.ofHours(1));
+    rates.check("register:" + ClientAddress.of(request), 10, Duration.ofHours(1));
     accounts.register(body.username, body.email, body.name, body.password);
     return Map.of(
       "message",
@@ -85,7 +85,7 @@ public class AuthController {
 
   @PostMapping("/auth/forgot-password")
   Map<String, String> forgot(@Valid @RequestBody EmailBody body, HttpServletRequest request) {
-    rates.check("reset:" + request.getRemoteAddr(), 15, Duration.ofMinutes(15));
+    rates.check("reset:" + ClientAddress.of(request), 15, Duration.ofMinutes(15));
     accounts.forgot(body.email);
     return Map.of(
       "message",

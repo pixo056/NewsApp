@@ -19,8 +19,8 @@ spring:
       maximum-pool-size: 6
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 110MB
+      max-file-size: 200MB
+      max-request-size: 210MB
   threads:
     virtual:
       enabled: true

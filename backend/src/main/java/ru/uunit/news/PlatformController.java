@@ -14,6 +14,7 @@ public class PlatformController {
   private final Accounts accounts;
   private final Communities communities;
   private final NewsService news;
+  private final NewsViews views;
   private final RateLimiter rates;
 
   public PlatformController(
@@ -21,12 +22,14 @@ public class PlatformController {
     Accounts accounts,
     Communities communities,
     NewsService news,
+    NewsViews views,
     RateLimiter rates
   ) {
     this.db = db;
     this.accounts = accounts;
     this.communities = communities;
     this.news = news;
+    this.views = views;
     this.rates = rates;
   }
 
@@ -69,12 +72,14 @@ public class PlatformController {
   }
 
   @PostMapping("/news/{id}/view")
-  void view(@PathVariable UUID id, jakarta.servlet.http.HttpServletRequest request) {
-    rates.check("view:" + request.getRemoteAddr(), 200, Duration.ofMinutes(1));
-    db.update(
-      "UPDATE news SET views=views+1 WHERE id=? AND NOT deleted AND published_revision_id IS NOT NULL",
-      id
-    );
+  NewsViews.Result view(
+    @PathVariable UUID id,
+    Authentication auth,
+    jakarta.servlet.http.HttpServletRequest request
+  ) {
+    rates.check("view:" + ClientAddress.of(request), 200, Duration.ofMinutes(1));
+    Accounts.User user = accounts.current(auth);
+    return views.record(id, user == null ? null : user.id(), request.getSession().getId());
   }
 
   @GetMapping("/me/news")

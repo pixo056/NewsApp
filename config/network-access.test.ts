@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { IncomingMessage } from 'node:http';
-import { isLoopback, networkAccess } from './network-access.ts';
+import { isLoopback, networkAccess, proxyClientHeaders } from './network-access.ts';
 
 // RFC 5737 documentation addresses: these are not anyone's Wi-Fi addresses.
 const request = (remoteAddress: string, localAddress = '192.0.2.10') =>
@@ -12,6 +12,18 @@ test('local mode only permits loopback clients', () => {
   for (const ip of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) assert.equal(allow(request(ip)), true);
   assert.equal(allow(request('192.0.2.20')), false);
   assert.equal(isLoopback('127.attacker.example'), false);
+});
+
+test('proxy derives identity from the socket and overwrites spoofed client markers', () => {
+  const spoofed = {
+    ...request('::ffff:192.0.2.20'),
+    headers: { 'x-newsapp-client-ip': '198.51.100.1', 'x-newsapp-mailbox': 'local' },
+  };
+  assert.deepEqual(proxyClientHeaders(spoofed), {
+    'X-NewsApp-Mailbox': 'remote',
+    'X-NewsApp-Client-IP': '192.0.2.20',
+  });
+  assert.equal(proxyClientHeaders(request('127.0.0.1'))['X-NewsApp-Mailbox'], 'local');
 });
 test('Wi-Fi mode permits its own subnet only on the chosen local address', () => {
   const allow = networkAccess('192.0.2.10', '24');

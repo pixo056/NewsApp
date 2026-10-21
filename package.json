@@ -13,6 +13,8 @@
     "typecheck": "tsc -b",
     "check:publication": "node scripts/check-publication.mjs",
     "test:network": "node --experimental-strip-types --test config/network-access.test.ts",
+    "test:frontend": "node --experimental-strip-types --test tests/frontend.test.ts",
+    "test:launcher": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-launcher.ps1",
     "preview": "vite preview --host 127.0.0.1",
     "format": "prettier --write src vite.config.ts index.html docs README.md backend/README.md",
     "format:check": "prettier --check src vite.config.ts index.html docs README.md backend/README.md",

@@ -106,12 +106,31 @@ assert.equal(
 );
 await owner.ok(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} });
 assert.equal((await guest.ok(`/news/${created.id}`)).title, input.title);
+const firstView = await guest.ok(`/news/${created.id}/view`, { method: 'POST', body: {} });
+assert.deepEqual(firstView, { views: 1, counted: true });
+assert.deepEqual(await guest.ok(`/news/${created.id}/view`, { method: 'POST', body: {} }), {
+  views: 1,
+  counted: false,
+});
+const anotherGuest = new Client();
+assert.deepEqual(await anotherGuest.ok(`/news/${created.id}/view`, { method: 'POST', body: {} }), {
+  views: 2,
+  counted: true,
+});
+assert.deepEqual(await student.ok(`/news/${created.id}/view`, { method: 'POST', body: {} }), {
+  views: 3,
+  counted: true,
+});
 await student.ok(`/communities/${club.id}/subscription`, { method: 'PUT' });
 await student.ok(`/news/${created.id}/bookmark`, { method: 'PUT' });
 await student.ok(`/news/${created.id}/reaction`, { method: 'PUT' });
 assert.ok((await student.ok('/me/preferences')).saved.includes(created.id));
 await student.ok('/auth/logout', { method: 'POST', body: {} });
 await student.login(username, password);
+assert.deepEqual(await student.ok(`/news/${created.id}/view`, { method: 'POST', body: {} }), {
+  views: 3,
+  counted: false,
+});
 assert.ok((await student.ok('/me/preferences')).followed.includes(club.id));
 const edited = { ...input, title: `Изменённая новость ${nonce}` };
 await student.ok(`/news/${created.id}/revisions`, { method: 'POST', body: edited });
@@ -140,6 +159,10 @@ await owner.ok(`/admin/reports/${report.id}`, {
   body: { resolution: 'Автоматический тест завершён, тестовая новость скрыта' },
 });
 assert.equal((await guest.request(`/news/${created.id}`)).status, 404);
+assert.equal(
+  (await guest.request(`/news/${created.id}/view`, { method: 'POST', body: {} })).status,
+  404,
+);
 assert.ok(!(await student.ok('/news?saved=true')).items.some((p) => p.id === created.id));
 await guest.ok('/auth/forgot-password', { method: 'POST', body: { email } });
 const reset = (await guest.ok('/dev/mailbox'))
@@ -162,5 +185,5 @@ assert.equal(
   400,
 );
 console.log(
-  'PASS: real HTTP registration, CSRF, verification, login, upload, group moderation, revisions, persistence, search, reactions, reports, password reset and session invalidation.',
+  'PASS: real HTTP registration, CSRF, verification, login, upload, group moderation, deduplicated views, revisions, persistence, search, reactions, reports, password reset and session invalidation.',
 );

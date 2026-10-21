@@ -57,7 +57,7 @@ export function NewsList({
   query?: string;
   empty?: string;
 }) {
-  const { user, saved } = useApp();
+  const { user, saved, followed } = useApp();
   const [items, setItems] = useState<Post[]>([]);
   const [cursor, setCursor] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -92,7 +92,13 @@ export function NewsList({
     return () => {
       generation.current++;
     };
-  }, [query, user?.id, retry, query.includes('saved=true') ? saved.join(',') : '']);
+  }, [
+    query,
+    user?.id,
+    retry,
+    query.includes('saved=true') ? saved.join(',') : '',
+    query.includes('subscriptions=true') ? followed.join(',') : '',
+  ]);
   const more = useCallback(async () => {
     if (busy.current || !cursor) return;
     busy.current = true;
@@ -581,7 +587,15 @@ export function ArticlePage() {
       .then((p) => {
         if (active) {
           setPost(p);
-          if (p.status === 'published') void json(`/news/${id}/view`, {}).catch(() => {});
+          if (p.status === 'published')
+            void json<{ views: number; counted: boolean }>(`/news/${id}/view`, {})
+              .then(({ views }) => {
+                if (active)
+                  setPost((current) =>
+                    current?.id === p.id ? { ...current, views: String(views) } : current,
+                  );
+              })
+              .catch(() => {});
         }
       })
       .catch((e) => {

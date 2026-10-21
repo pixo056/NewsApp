@@ -403,6 +403,39 @@ class PlatformIntegrationTest {
   }
 
   @Test
+  void wifiPasswordResetLimitsAreIndependent() throws Exception {
+    for (int attempt = 0; attempt < 15; attempt++) {
+      mvc
+        .perform(
+          post("/api/auth/forgot-password")
+            .with(csrf())
+            .header("X-NewsApp-Client-IP", "198.51.100.31")
+            .contentType("application/json")
+            .content("{\"email\":\"missing@example.invalid\"}")
+        )
+        .andExpect(status().isOk());
+    }
+    mvc
+      .perform(
+        post("/api/auth/forgot-password")
+          .with(csrf())
+          .header("X-NewsApp-Client-IP", "198.51.100.31")
+          .contentType("application/json")
+          .content("{\"email\":\"missing@example.invalid\"}")
+      )
+      .andExpect(status().isTooManyRequests());
+    mvc
+      .perform(
+        post("/api/auth/forgot-password")
+          .with(csrf())
+          .header("X-NewsApp-Client-IP", "198.51.100.32")
+          .contentType("application/json")
+          .content("{\"email\":\"missing@example.invalid\"}")
+      )
+      .andExpect(status().isOk());
+  }
+
+  @Test
   void videoIsProcessedAndSupportsRangeRequests() throws Exception {
     Path fixture = Files.createTempFile("newsapp-test-", ".mp4");
     try {
@@ -451,6 +484,78 @@ class PlatformIntegrationTest {
     } finally {
       Files.deleteIfExists(fixture);
     }
+  }
+
+  @Test
+  void threeMinuteVideoLimitIsEnforcedWithoutTruncatingValidClips() throws Exception {
+    for (int seconds : new int[] { 180, 181 }) {
+      Path fixture = Files.createTempFile("newsapp-duration-test-", ".mp4");
+      try {
+        Process process = new ProcessBuilder(
+          System.getenv("NEWSAPP_FFMPEG"),
+          "-v",
+          "error",
+          "-y",
+          "-f",
+          "lavfi",
+          "-i",
+          "color=c=purple:s=32x32:r=1:d=" + seconds,
+          "-c:v",
+          "libx264",
+          "-pix_fmt",
+          "yuv420p",
+          fixture.toString()
+        )
+          .redirectError(ProcessBuilder.Redirect.INHERIT)
+          .start();
+        assertTrue(process.waitFor(30, TimeUnit.SECONDS));
+        assertEquals(0, process.exitValue());
+        var file = new MockMultipartFile(
+          "file",
+          "clip.mp4",
+          "video/mp4",
+          Files.readAllBytes(fixture)
+        );
+        if (seconds == 180) {
+          var result = media.upload(file, owner());
+          assertEquals(180.0, ((Number) result.get("duration")).doubleValue(), 0.25);
+          Path encoded = Path.of(
+            System.getenv("NEWSAPP_LOCAL_DIR"),
+            "tests",
+            "media",
+            result.get("id") + ".mp4"
+          );
+          Process probe = new ProcessBuilder(
+            System.getenv("NEWSAPP_FFPROBE"),
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            encoded.toString()
+          ).start();
+          assertTrue(probe.waitFor(30, TimeUnit.SECONDS));
+          assertEquals(0, probe.exitValue());
+          assertEquals(
+            180.0,
+            Double.parseDouble(new String(probe.getInputStream().readAllBytes()).trim()),
+            0.25
+          );
+        } else {
+          assertThrows(ApiException.class, () -> media.upload(file, owner()));
+        }
+      } finally {
+        Files.deleteIfExists(fixture);
+      }
+    }
+    var oversized = new MockMultipartFile("file", "large.mp4", "video/mp4", new byte[] { 1 }) {
+      @Override
+      public long getSize() {
+        return 200L * 1024 * 1024 + 1;
+      }
+    };
+    assertThrows(ApiException.class, () -> media.upload(oversized, owner()));
   }
 
   @Test

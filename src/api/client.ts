@@ -1,17 +1,39 @@
 import type { MediaAsset } from '../domain/types';
-const base = import.meta.env.VITE_API_URL || '/api';
+const base = import.meta.env?.VITE_API_URL || '/api';
+const connectionError = 'Нет связи с локальным сервером. Проверьте, что start.cmd работает.';
+const unexpectedResponse = 'Сервер вернул неожиданный ответ. Проверьте backend.';
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
+  status: number;
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
   }
 }
 export async function csrf() {
-  const response = await fetch(`${base}/auth/csrf`, { credentials: 'include', cache: 'no-store' });
+  let response: Response;
+  try {
+    response = await fetch(`${base}/auth/csrf`, { credentials: 'include', cache: 'no-store' });
+  } catch {
+    throw new ApiError(0, connectionError);
+  }
   if (!response.ok) throw new ApiError(response.status, 'Backend недоступен. Запустите start.cmd.');
-  return response.json() as Promise<{ token: string; headerName: string }>;
+  try {
+    const data: unknown = await response.json();
+    if (
+      !data ||
+      typeof data !== 'object' ||
+      !('token' in data) ||
+      typeof data.token !== 'string' ||
+      !data.token ||
+      !('headerName' in data) ||
+      typeof data.headerName !== 'string' ||
+      !data.headerName
+    )
+      throw new Error('Invalid CSRF response');
+    return { token: data.token, headerName: data.headerName };
+  } catch {
+    throw new ApiError(response.status, unexpectedResponse);
+  }
 }
 export async function api<T = void>(path: string, options: RequestInit = {}): Promise<T> {
   const method = options.method || 'GET';
@@ -31,7 +53,7 @@ export async function api<T = void>(path: string, options: RequestInit = {}): Pr
       cache: 'no-store',
     });
   } catch {
-    throw new ApiError(0, 'Нет связи с локальным сервером. Проверьте, что start.cmd работает.');
+    throw new ApiError(0, connectionError);
   }
   const text = await response.text();
   let data: { message?: string } = {};
@@ -39,7 +61,7 @@ export async function api<T = void>(path: string, options: RequestInit = {}): Pr
     try {
       data = JSON.parse(text);
     } catch {
-      throw new ApiError(response.status, 'Сервер вернул неожиданный ответ. Проверьте backend.');
+      throw new ApiError(response.status, unexpectedResponse);
     }
   }
   if (!response.ok)

@@ -15,6 +15,13 @@ export function isLoopback(value?: string) {
   return address === '::1' || (isIP(address) === 4 && address.startsWith('127.'));
 }
 
+export function proxyClientHeaders(request: Pick<IncomingMessage, 'socket'>) {
+  return {
+    'X-NewsApp-Mailbox': isLoopback(request.socket.remoteAddress) ? 'local' : 'remote',
+    'X-NewsApp-Client-IP': normalize(request.socket.remoteAddress),
+  };
+}
+
 export function networkAccess(lanIp?: string, prefixText?: string) {
   const address = lanIp ? ipv4(lanIp) : null;
   const prefix = Number(prefixText);

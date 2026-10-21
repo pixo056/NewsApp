@@ -57,6 +57,10 @@ try {
         $vite=Join-Path $projectRoot 'node_modules\vite\bin\vite.js'
         $frontend=Start-Process -FilePath $node -ArgumentList @(('"'+$vite+'"'),'--host',$webHost,'--port','5173','--strictPort') -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $localRoot 'logs\frontend.log') -RedirectStandardError (Join-Path $localRoot 'logs\frontend-error.log')
         $owned+=@{id=$frontend.Id;started=$frontend.StartTime.ToUniversalTime().ToString('o');path=$node}
+        . (Join-Path $PSScriptRoot 'frontend-ready.ps1')
+        $expectedMode=if ($Lan) { 'wifi' } else { 'local' }
+        $expectedIp=if ($Lan) { $wifiNetwork.Ip } else { '' }
+        Wait-NewsAppFrontend -Process $frontend -Mode $expectedMode -WifiIp $expectedIp
     }
     $registry=@($owned)
     $processFile=Join-Path $localRoot 'processes.json'

@@ -93,8 +93,8 @@ public class MediaService {
 
   public Map<String, Object> upload(MultipartFile file, Accounts.User user) throws IOException {
     accounts.verified(user);
-    if (file.isEmpty() || file.getSize() > 100L * 1024 * 1024) throw ApiException.bad(
-      "Размер файла: от 1 байта до 100 МиБ"
+    if (file.isEmpty() || file.getSize() > 200L * 1024 * 1024) throw ApiException.bad(
+      "Размер файла: от 1 байта до 200 МиБ"
     );
     UUID id = UUID.randomUUID();
     Path input = safe(id + ".upload");
@@ -158,13 +158,13 @@ public class MediaService {
         duration = probe.path("format").path("duration").asDouble(-1);
         if (
           duration <= 0 ||
-          duration > 60.25 ||
+          duration > 180.25 ||
           Math.max(width, height) > 1920 ||
           Math.min(width, height) > 1080 ||
           width < 2 ||
           height < 2
         ) throw ApiException.bad(
-          "Видео: до 60 секунд, не выше 1080p, включая вертикальную ориентацию"
+          "Видео: до 3 минут, не выше 1080p, включая вертикальную ориентацию"
         );
         run(
           List.of(
@@ -182,7 +182,7 @@ public class MediaService {
             "-map",
             "0:a:0?",
             "-t",
-            "60",
+            "180",
             "-vf",
             "scale=trunc(iw/2)*2:trunc(ih/2)*2",
             "-c:v",
@@ -203,7 +203,7 @@ public class MediaService {
             "2",
             output.toString()
           ),
-          180
+          540
         );
         run(
           List.of(

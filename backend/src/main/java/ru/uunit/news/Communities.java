@@ -123,7 +123,11 @@ public class Communities {
 
   @Transactional
   public void update(UUID id, Accounts.User user, String name, String description) {
-    Map<String, Object> c = require(id);
+    Map<String, Object> c = db
+      .queryForList("SELECT * FROM communities WHERE id=? FOR UPDATE", id)
+      .stream()
+      .findFirst()
+      .orElseThrow(ApiException::missing);
     if (
       !accounts.admin(user) &&
       (Boolean.TRUE.equals(c.get("official")) || !user.id().equals(c.get("owner_id")))
