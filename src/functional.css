@@ -284,3 +284,20 @@ button:disabled {
   margin: 48px auto;
   padding: 24px;
 }
+.compose-destination {
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--primary-soft);
+  overflow-wrap: anywhere;
+}
+.compose-community {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+.compose-community strong {
+  min-width: 0;
+}

@@ -476,7 +476,7 @@ export function CommunityPage() {
             </button>
           </div>
           <div className="community-tools">
-            <Link to={`/create?community=${id}`} className="text-link">
+            <Link to={`/communities/${id}/submit`} className="primary-button">
               Предложить новость <ArrowUpRight size={15} />
             </Link>
             {community.canManage && (

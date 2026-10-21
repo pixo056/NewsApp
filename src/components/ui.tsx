@@ -98,7 +98,7 @@ export function ErrorState({ message, retry }: { message: string; retry?: () => 
     </div>
   );
 }
-export function AccountGate({ children }: { children: ReactNode }) {
+export function AccountGate({ children, returnTo }: { children: ReactNode; returnTo?: string }) {
   const { user, loading } = useApp();
   if (loading) return <Loading />;
   if (!user)
@@ -107,7 +107,10 @@ export function AccountGate({ children }: { children: ReactNode }) {
         title="Войдите в свой аккаунт"
         text="Читайте общую ленту без регистрации. Для этого действия нужен аккаунт."
         action={
-          <Link className="primary-button" to="/auth/login">
+          <Link
+            className="primary-button"
+            to={returnTo ? `/auth/login?returnTo=${encodeURIComponent(returnTo)}` : '/auth/login'}
+          >
             Войти или зарегистрироваться
           </Link>
         }

@@ -214,6 +214,7 @@ export function App() {
       '/communities/new',
     ].includes(location.pathname) ||
     location.pathname.startsWith('/edit/') ||
+    /^\/communities\/[^/]+\/submit$/.test(location.pathname) ||
     location.pathname.startsWith('/auth/');
   if (/^\/cms(?:\/|$)/.test(location.pathname)) {
     if (loading) return <Loading />;
@@ -342,6 +343,7 @@ export function App() {
             <Route path="/communities" element={<CommunitiesPage />} />
             <Route path="/communities/new" element={<CreateCommunityPage />} />
             <Route path="/communities/:id" element={<CommunityPage />} />
+            <Route path="/communities/:communityId/submit" element={<ComposePage />} />
             <Route path="/news/:id" element={<ArticlePage />} />
             <Route path="/news/:id/report" element={<ReportPage />} />
             <Route path="/saved" element={<SavedPage />} />

@@ -26,6 +26,7 @@ import { useApp } from '../app/context';
 import { api, json, upload } from '../api/client';
 import { useResource, useUnsavedChanges } from '../api/hooks';
 import { validateNewsDraft, validateNewsMedia } from '../domain/news-validation';
+import { authReturnTo } from '../domain/auth-return';
 import { categories } from '../data/categories';
 import type { MediaAsset, Post, Report, User } from '../domain/types';
 import {
@@ -40,15 +41,16 @@ import {
 } from '../components/ui';
 
 export function ComposePage() {
-  const { id } = useParams();
+  const { id, communityId: routeCommunityId } = useParams();
   const [params] = useSearchParams();
-  const { user, communities, notify, refresh } = useApp();
+  const { user, communities, notify, refresh, loading: appLoading } = useApp();
   const navigate = useNavigate();
   const original = useResource<Post>(id && user ? `/me/news/${id}` : null);
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
   const [category, setCategory] = useState('Университет');
-  const [communityId, setCommunity] = useState(params.get('community') || '');
+  const requestedCommunity = routeCommunityId || params.get('community') || '';
+  const communityId = id ? original.data?.communityId || '' : requestedCommunity;
   const [source, setSource] = useState('');
   const [media, setMedia] = useState<MediaAsset[]>([]);
   const [error, setError] = useState('');
@@ -64,7 +66,6 @@ export function ComposePage() {
     setTitle(p.title);
     setText(p.text);
     setCategory(p.category);
-    setCommunity(p.communityId || '');
     setSource(p.source);
     setMedia(p.media);
     setDirty(false);
@@ -75,13 +76,13 @@ export function ComposePage() {
       setTitle('');
       setText('');
       setCategory('Университет');
-      setCommunity(params.get('community') || '');
       setSource('');
       setMedia([]);
+      setError('');
       setDirty(false);
       setTouched({ title: false, text: false, source: false });
     }
-  }, [id]);
+  }, [id, requestedCommunity]);
   const selected = communities.find((c) => c.id === communityId);
   const video = media.some((m) => m.kind === 'video');
   const fieldErrors = validateNewsDraft({ title, text, source, hasVideo: video });
@@ -110,16 +111,46 @@ export function ComposePage() {
     }
   }
   return (
-    <AccountGate>
+    <AccountGate
+      returnTo={
+        id
+          ? undefined
+          : routeCommunityId
+            ? `/communities/${routeCommunityId}/submit`
+            : requestedCommunity
+              ? `/create?community=${requestedCommunity}`
+              : '/create'
+      }
+    >
       <PageHeading
-        title={id ? 'Редактирование новости' : 'Что нового в кампусе?'}
-        subtitle="Поделитесь тем, что заслуживает внимания."
-        back="/my-posts"
+        title={
+          id
+            ? 'Редактирование новости'
+            : communityId
+              ? 'Предложить новость в паблик'
+              : 'Личная публикация'
+        }
+        subtitle={
+          communityId
+            ? 'Отправьте материал в этот паблик на проверку.'
+            : 'Поделитесь новостью от своего имени.'
+        }
+        back={communityId && selected ? `/communities/${communityId}` : '/my-posts'}
       />
-      {id && original.loading ? (
+      {(id && original.loading) || appLoading ? (
         <Loading />
-      ) : original.error ? (
+      ) : id && original.error ? (
         <ErrorState message={original.error} />
+      ) : communityId && !selected ? (
+        <EmptyState
+          title="Паблик недоступен"
+          text="Выберите паблик в каталоге и откройте его страницу, чтобы предложить новость."
+          action={
+            <Link className="primary-button" to="/communities">
+              Найти паблик
+            </Link>
+          }
+        />
       ) : (
         <div className="editor-grid">
           <form
@@ -161,30 +192,37 @@ export function ComposePage() {
           >
             <div className="editor-section">
               <h2>Ваша история</h2>
-              <label className="form-field">
-                Куда отправить новость
-                <select
-                  value={communityId}
-                  disabled={!!id}
-                  onChange={(e) => setCommunity(e.target.value)}
-                >
-                  <option value="">Личная публикация · проверяет администрация</option>
-                  {communities.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                      {c.verified ? ' · УУНиТ' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {selected && (
-                <p className="field-note">
-                  {selected.verified
-                    ? 'Новость проверит администрация платформы.'
-                    : 'Новость проверит создатель этого паблика.'}{' '}
-                  Автор заявки: {user?.name}.
-                </p>
-              )}
+              <div className="compose-destination">
+                {selected ? (
+                  <>
+                    <span className="field-note">Новость для паблика</span>
+                    <Link to={`/communities/${selected.id}`} className="compose-community">
+                      <Avatar community={selected} />
+                      <strong>{selected.name}</strong>
+                    </Link>
+                    <p className="field-note">
+                      {selected.verified
+                        ? 'Новость проверит администрация платформы.'
+                        : 'Новость проверит создатель этого паблика.'}{' '}
+                      Автор заявки: {user?.name}.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <strong>От вашего имени · {user?.name}</strong>
+                    <p className="field-note">Новость проверит администрация платформы.</p>
+                    {!id && (
+                      <p className="field-note">
+                        Хотите предложить материал в паблик?{' '}
+                        <Link to="/communities" className="text-link">
+                          Откройте его страницу
+                        </Link>{' '}
+                        и нажмите «Предложить новость».
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
               <label className="form-field">
                 Категория
                 <select value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -766,7 +804,7 @@ export function AuthPage() {
                 body,
               });
               await refresh();
-              navigate(params.get('returnTo') === '/cms' ? '/cms' : '/profile');
+              navigate(authReturnTo(params.get('returnTo')));
             } else if (register) {
               const result = await json<{ message: string }>(
                 '/auth/register',
@@ -907,7 +945,14 @@ export function AuthPage() {
             : reset || verify
               ? 'Вернуться к входу? '
               : 'Первый раз здесь? '}
-          <Link to={mode === 'login' ? '/auth/register' : '/auth/login'}>
+          <Link
+            to={
+              (mode === 'login' ? '/auth/register' : '/auth/login') +
+              (params.get('returnTo')
+                ? `?returnTo=${encodeURIComponent(authReturnTo(params.get('returnTo')))}`
+                : '')
+            }
+          >
             {mode === 'login' ? 'Создать аккаунт' : 'Войти'}
           </Link>
         </p>

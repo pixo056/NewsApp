@@ -2,6 +2,27 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateNewsDraft, validateNewsMedia } from '../src/domain/news-validation.ts';
 import { api, ApiError, csrf, upload } from '../src/api/client.ts';
+import { authReturnTo } from '../src/domain/auth-return.ts';
+
+test('sign-in returns to the selected community submission without allowing external redirects', () => {
+  const id = 'a3e14066-c7ea-4be1-a0dd-52ad72c5ee11';
+  for (const path of ['/cms', '/create', `/communities/${id}/submit`, `/create?community=${id}`]) {
+    assert.equal(authReturnTo(path), path);
+  }
+  for (const path of [
+    null,
+    '',
+    'https://example.com',
+    '//example.com',
+    '/\\example.com',
+    '/cms/../other',
+    `/communities/${id}/submit?redirect=https://example.com`,
+    '/communities/unknown/submit',
+    `/create?community=${id}&redirect=https://example.com`,
+  ]) {
+    assert.equal(authReturnTo(path), '/profile');
+  }
+});
 
 const draft = { title: 'Название новости', text: 'Т'.repeat(50), source: '', hasVideo: false };
 
