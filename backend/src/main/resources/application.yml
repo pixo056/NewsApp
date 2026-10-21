@@ -1,0 +1,39 @@
+server:
+  address: 127.0.0.1
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+  servlet:
+    session:
+      timeout: 12h
+      cookie:
+        http-only: true
+        same-site: lax
+spring:
+  datasource:
+    url: ${NEWSAPP_DB_URL:jdbc:postgresql://127.0.0.1:55432/newsapp}
+    username: ${NEWSAPP_DB_USER:newsapp}
+    password: ${NEWSAPP_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 6
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 110MB
+  threads:
+    virtual:
+      enabled: true
+  jackson:
+    default-property-inclusion: non_null
+app:
+  local-directory: ${NEWSAPP_LOCAL_DIR:../.local}
+  admin-password: ${NEWSAPP_ADMIN_PASSWORD}
+  owner-password: ${NEWSAPP_OWNER_PASSWORD}
+  seed: ${NEWSAPP_SEED:true}
+  local-mailbox: ${NEWSAPP_LOCAL_MAILBOX:true}
+  ffmpeg: ${NEWSAPP_FFMPEG:../.local/tools/ffmpeg/bin/ffmpeg.exe}
+  ffprobe: ${NEWSAPP_FFPROBE:../.local/tools/ffmpeg/bin/ffprobe.exe}
+logging:
+  level:
+    org.springframework.security: WARN
