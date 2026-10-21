@@ -1705,6 +1705,13 @@ main:focus {
   font-size: 11px;
   line-height: 1.8;
 }
+.form-field > .form-error {
+  display: block;
+  margin: 8px 0 0;
+}
+.form-field [aria-invalid='true'] {
+  border-color: #ba3d4d;
+}
 .stats-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
