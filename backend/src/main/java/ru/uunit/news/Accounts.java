@@ -89,11 +89,24 @@ public class Accounts {
   }
 
   public User current(Authentication authentication) {
-    return authentication == null ||
+    if (
+      authentication == null ||
       !authentication.isAuthenticated() ||
       "anonymousUser".equals(authentication.getPrincipal())
-      ? null
-      : find(authentication.getName());
+    ) return null;
+    if (
+      Boolean.TRUE.equals(
+        db.queryForObject(
+          "SELECT blocked FROM app_users WHERE username=?",
+          Boolean.class,
+          authentication.getName()
+        )
+      )
+    ) throw new ApiException(
+      org.springframework.http.HttpStatus.UNAUTHORIZED,
+      "Аккаунт заблокирован. Обратитесь к администрации платформы."
+    );
+    return find(authentication.getName());
   }
 
   public User require(Authentication authentication) {
@@ -197,7 +210,7 @@ public class Accounts {
   @Transactional
   public void forgot(String email) {
     db.query(
-      "SELECT id,email FROM app_users WHERE email=?",
+      "SELECT id,email FROM app_users WHERE email=? AND NOT blocked",
       (r, n) -> new Object[] { r.getObject("id", UUID.class), r.getString("email") },
       email.toLowerCase(java.util.Locale.ROOT).trim()
     )
@@ -212,7 +225,7 @@ public class Accounts {
     if ("reset".equals(purpose)) checkPassword(password);
     UUID userId = db
       .query(
-        "SELECT user_id FROM account_tokens WHERE token_hash=? AND purpose=? AND used_at IS NULL AND expires_at>now() FOR UPDATE",
+        "SELECT user_id FROM account_tokens WHERE token_hash=? AND purpose=? AND used_at IS NULL AND expires_at>now()",
         (r, n) -> r.getObject(1, UUID.class),
         hash(token),
         purpose
@@ -220,6 +233,28 @@ public class Accounts {
       .stream()
       .findFirst()
       .orElseThrow(() -> ApiException.bad("Ссылка недействительна, уже использована или истекла"));
+    // Lock accounts before tokens, matching CMS blocking and preventing a reset
+    // that races with a block from restoring access or consuming a stale token.
+    if (
+      Boolean.TRUE.equals(
+        db.queryForObject(
+          "SELECT blocked FROM app_users WHERE id=? FOR UPDATE",
+          Boolean.class,
+          userId
+        )
+      )
+    ) throw ApiException.forbidden();
+    if (
+      db
+        .query(
+          "SELECT user_id FROM account_tokens WHERE token_hash=? AND purpose=? AND user_id=? AND used_at IS NULL AND expires_at>now() FOR UPDATE",
+          (r, n) -> r.getObject(1, UUID.class),
+          hash(token),
+          purpose,
+          userId
+        )
+        .isEmpty()
+    ) throw ApiException.bad("Ссылка недействительна, уже использована или истекла");
     db.update("UPDATE account_tokens SET used_at=now() WHERE token_hash=?", hash(token));
     if ("verify".equals(purpose)) db.update(
       "UPDATE app_users SET verified=TRUE WHERE id=?",
@@ -236,11 +271,15 @@ public class Accounts {
         String.class,
         userId
       );
-      for (Object principal : sessions.getAllPrincipals())
-        if (
-          principal instanceof UserDetails details && details.getUsername().equals(username)
-        ) sessions.getAllSessions(principal, false).forEach(s -> s.expireNow());
+      endSessions(username);
     }
+  }
+
+  public void endSessions(String username) {
+    for (Object principal : sessions.getAllPrincipals())
+      if (
+        principal instanceof UserDetails details && details.getUsername().equals(username)
+      ) sessions.getAllSessions(principal, false).forEach(s -> s.expireNow());
   }
 
   public List<Mail> mailbox() {

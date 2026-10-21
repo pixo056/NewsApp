@@ -43,11 +43,12 @@ public class SecurityConfig {
     return username ->
       db
         .query(
-          "SELECT username,password_hash,role FROM app_users WHERE username=?",
+          "SELECT username,password_hash,role,blocked FROM app_users WHERE username=?",
           (r, n) ->
             org.springframework.security.core.userdetails.User.withUsername(r.getString("username"))
               .password(r.getString("password_hash"))
               .roles(r.getString("role"))
+              .disabled(r.getBoolean("blocked"))
               .build(),
           username
         )

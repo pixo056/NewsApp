@@ -45,6 +45,6 @@ public class Errors {
 
   @ExceptionHandler(MaxUploadSizeExceededException.class)
   ResponseEntity<?> upload(Exception e) {
-    return ResponseEntity.status(413).body(Map.of("message", "Размер файла превышает 100 МиБ"));
+    return ResponseEntity.status(413).body(Map.of("message", "Размер файла превышает 200 МиБ"));
   }
 }

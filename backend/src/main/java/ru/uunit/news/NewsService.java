@@ -253,8 +253,47 @@ public class NewsService {
 
   @Transactional
   public UUID submit(Accounts.User user, Input input, UUID existing) {
-    if (input == null) throw ApiException.bad("Заполните поля новости");
     accounts.verified(user);
+    Validated validated = validateInput(user, input, existing);
+    List<UUID> ids = validated.ids();
+    String text = validated.text();
+    db.queryForObject("SELECT id FROM app_users WHERE id=? FOR UPDATE", UUID.class, user.id());
+    Map<String, Object> community = null;
+    if (input.communityId != null) {
+      community = db
+        .queryForList("SELECT * FROM communities WHERE id=? FOR UPDATE", input.communityId)
+        .stream()
+        .findFirst()
+        .orElseThrow(ApiException::missing);
+    }
+    checkQuota(user, community, input.communityId, true);
+    UUID id = existing == null ? UUID.randomUUID() : existing;
+    if (existing == null) db.update(
+      "INSERT INTO news(id,author_id,community_id) VALUES(?,?,?)",
+      id,
+      user.id(),
+      input.communityId
+    );
+    else {
+      Map<String, Object> row = db
+        .queryForList("SELECT * FROM news WHERE id=? AND NOT deleted FOR UPDATE", id)
+        .stream()
+        .findFirst()
+        .orElseThrow(ApiException::missing);
+      if (!user.id().equals(row.get("author_id"))) throw ApiException.forbidden();
+      if (!Objects.equals(input.communityId, row.get("community_id"))) throw ApiException.bad(
+        "При редактировании нельзя изменить паблик"
+      );
+      withdrawPending(row);
+    }
+    saveRevision(id, input, text, ids);
+    return id;
+  }
+
+  private record Validated(List<UUID> ids, String text) {}
+
+  private Validated validateInput(Accounts.User user, Input input, UUID editorialNews) {
+    if (input == null) throw ApiException.bad("Заполните поля новости");
     List<UUID> ids = input.mediaIds == null ? List.of() : input.mediaIds;
     if (
       characters(input.title) < 10 ||
@@ -283,9 +322,12 @@ public class NewsService {
       media.add(
         db
           .queryForList(
-            "SELECT * FROM media_assets WHERE id=? AND owner_id=? FOR KEY SHARE",
+            "SELECT m.* FROM media_assets m WHERE m.id=? AND (m.owner_id=? OR EXISTS(" +
+              "SELECT 1 FROM revision_media rm JOIN news_revisions r ON r.id=rm.revision_id " +
+              "WHERE rm.media_id=m.id AND r.news_id=?)) FOR KEY SHARE OF m",
             id,
-            user.id()
+            user.id(),
+            editorialNews
           )
           .stream()
           .findFirst()
@@ -304,15 +346,15 @@ public class NewsService {
     if (characters(text) > 10000 || (videos == 0 && characters(text) < 50)) throw ApiException.bad(
       "Текст: 50–10 000 символов. С видео текст необязателен."
     );
-    db.queryForObject("SELECT id FROM app_users WHERE id=? FOR UPDATE", UUID.class, user.id());
-    Map<String, Object> community = null;
-    if (input.communityId != null) {
-      community = db
-        .queryForList("SELECT * FROM communities WHERE id=? FOR UPDATE", input.communityId)
-        .stream()
-        .findFirst()
-        .orElseThrow(ApiException::missing);
-    }
+    return new Validated(ids, text);
+  }
+
+  private void checkQuota(
+    Accounts.User user,
+    Map<String, Object> community,
+    UUID communityId,
+    boolean personal
+  ) {
     Timestamp day = Timestamp.from(
       LocalDate.now(ZoneId.of("Asia/Yekaterinburg"))
         .atStartOfDay(ZoneId.of("Asia/Yekaterinburg"))
@@ -323,6 +365,7 @@ public class NewsService {
         ? ((Number) community.get("daily_limit")).intValue()
         : 5;
     if (
+      personal &&
       !accounts.admin(user) &&
       db.queryForObject(
         "SELECT count(*) FROM news_revisions r JOIN news n ON n.id=r.news_id WHERE n.author_id=? AND r.submitted_at>=?",
@@ -336,32 +379,20 @@ public class NewsService {
       db.queryForObject(
         "SELECT count(*) FROM news_revisions r JOIN news n ON n.id=r.news_id WHERE n.community_id=? AND r.submitted_at>=?",
         Integer.class,
-        input.communityId,
+        communityId,
         day
       ) >= ((Number) community.get("daily_limit")).intValue()
     ) throw ApiException.bad("Суточный лимит паблика исчерпан");
-    UUID id = existing == null ? UUID.randomUUID() : existing;
-    if (existing == null) db.update(
-      "INSERT INTO news(id,author_id,community_id) VALUES(?,?,?)",
-      id,
-      user.id(),
-      input.communityId
+  }
+
+  private void withdrawPending(Map<String, Object> row) {
+    db.update(
+      "UPDATE news_revisions SET status='withdrawn' WHERE id=? AND status='pending'",
+      row.get("latest_revision_id")
     );
-    else {
-      Map<String, Object> row = db
-        .queryForList("SELECT * FROM news WHERE id=? AND NOT deleted FOR UPDATE", id)
-        .stream()
-        .findFirst()
-        .orElseThrow(ApiException::missing);
-      if (!user.id().equals(row.get("author_id"))) throw ApiException.forbidden();
-      if (!Objects.equals(input.communityId, row.get("community_id"))) throw ApiException.bad(
-        "При редактировании нельзя изменить паблик"
-      );
-      db.update(
-        "UPDATE news_revisions SET status='withdrawn' WHERE id=? AND status='pending'",
-        row.get("latest_revision_id")
-      );
-    }
+  }
+
+  private void saveRevision(UUID id, Input input, String text, List<UUID> ids) {
     UUID revision = UUID.randomUUID();
     db.update(
       "INSERT INTO news_revisions(id,news_id,title,body,category,source_url,status) VALUES(?,?,?,?,?,?,'pending')",
@@ -379,7 +410,61 @@ public class NewsService {
       i
     );
     db.update("UPDATE news SET latest_revision_id=? WHERE id=?", revision, id);
-    return id;
+  }
+
+  @Transactional
+  public void editorialEdit(UUID id, Accounts.User editor, Input input) {
+    accounts.verified(editor);
+    Map<String, Object> before = db
+      .queryForList("SELECT * FROM news WHERE id=?", id)
+      .stream()
+      .findFirst()
+      .orElseThrow(ApiException::missing);
+    if (input == null) throw ApiException.bad("Заполните поля новости");
+    if (input.mediaIds() == null) input = new Input(
+      input.title(),
+      input.text(),
+      input.category(),
+      input.communityId(),
+      input.source(),
+      db.queryForList(
+        "SELECT media_id FROM revision_media WHERE revision_id=? ORDER BY sort_order",
+        UUID.class,
+        before.get("latest_revision_id")
+      )
+    );
+    Validated validated = validateInput(editor, input, id);
+    db.queryForObject("SELECT id FROM app_users WHERE id=? FOR UPDATE", UUID.class, editor.id());
+    Map<String, Object> community = null;
+    if (before.get("community_id") != null) community = db
+      .queryForList("SELECT * FROM communities WHERE id=? FOR UPDATE", before.get("community_id"))
+      .stream()
+      .findFirst()
+      .orElseThrow(ApiException::missing);
+    Map<String, Object> row = db
+      .queryForList("SELECT * FROM news WHERE id=? FOR UPDATE", id)
+      .stream()
+      .findFirst()
+      .orElseThrow(ApiException::missing);
+    Map<String, Object> permission = new HashMap<>(row);
+    if (community != null) {
+      permission.put("official", community.get("official"));
+      permission.put("owner_id", community.get("owner_id"));
+    }
+    if (!moderator(permission, editor)) throw ApiException.forbidden();
+    if (!Objects.equals(input.communityId(), row.get("community_id"))) throw ApiException.bad(
+      "При редактировании нельзя изменить паблик"
+    );
+    checkQuota(editor, community, input.communityId(), false);
+    withdrawPending(row);
+    saveRevision(id, input, validated.text(), validated.ids());
+    db.update(
+      "INSERT INTO audit_log(id,actor_id,action,target_id,detail) VALUES(?,?,'cms-edit',?,?)",
+      UUID.randomUUID(),
+      editor.id(),
+      id,
+      "Редакторская правка отправлена на модерацию"
+    );
   }
 
   public List<Map<String, Object>> queue(Accounts.User user) {
@@ -405,7 +490,7 @@ public class NewsService {
       .stream()
       .findFirst()
       .orElseThrow(ApiException::missing);
-    db.queryForObject("SELECT id FROM news WHERE id=? FOR UPDATE", UUID.class, newsId);
+    lockNewsAndCommunity(newsId);
     Map<String, Object> row = newsRow(newsId);
     if (!moderator(row, user)) throw ApiException.forbidden();
     String status = db.queryForObject(
@@ -456,6 +541,7 @@ public class NewsService {
 
   @Transactional
   public void delete(UUID id, Accounts.User user, boolean moderation) {
+    lockNewsAndCommunity(id);
     Map<String, Object> row = newsRow(id);
     if (
       moderation ? !moderator(row, user) : !user.id().equals(row.get("author_id"))
@@ -468,5 +554,19 @@ public class NewsService {
       moderation ? "hide" : "delete",
       id
     );
+  }
+
+  private void lockNewsAndCommunity(UUID id) {
+    Map<String, Object> identity = db
+      .queryForList("SELECT community_id FROM news WHERE id=?", id)
+      .stream()
+      .findFirst()
+      .orElseThrow(ApiException::missing);
+    if (identity.get("community_id") != null) db.queryForObject(
+      "SELECT id FROM communities WHERE id=? FOR UPDATE",
+      UUID.class,
+      identity.get("community_id")
+    );
+    db.queryForObject("SELECT id FROM news WHERE id=? FOR UPDATE", UUID.class, id);
   }
 }
