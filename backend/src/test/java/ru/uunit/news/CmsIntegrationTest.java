@@ -614,7 +614,7 @@ class CmsIntegrationTest {
 
   @Test
   void summaryCountsMatchScopedListsAndPendingReports() throws Exception {
-    UUID pending = create(
+    UUID pendingNews = create(
       admin(),
       club(),
       "Новая CMS-заявка без даты публикации",
@@ -622,7 +622,7 @@ class CmsIntegrationTest {
       List.of()
     );
     mvc
-      .perform(get("/api/cms/news/" + pending).with(as(owner())))
+      .perform(get("/api/cms/news/" + pendingNews).with(as(owner())))
       .andExpect(status().isOk())
       .andExpect(jsonPath("publishedAt").doesNotExist());
     JsonNode summary = mapper.readTree(

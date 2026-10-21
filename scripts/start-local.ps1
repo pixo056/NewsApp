@@ -1,4 +1,4 @@
-param([switch]$NoOpen,[switch]$Lan)
+param([switch]$NoOpen,[switch]$Lan,[switch]$Cms)
 . (Join-Path $PSScriptRoot 'local-env.ps1')
 Set-Location -LiteralPath $projectRoot
 & (Join-Path $PSScriptRoot 'setup-local.ps1')
@@ -65,20 +65,25 @@ try {
     $registry=@($owned)
     $processFile=Join-Path $localRoot 'processes.json'
     if (Test-Path -LiteralPath $processFile) {
-        foreach ($entry in @(Get-Content -LiteralPath $processFile -Raw | ConvertFrom-Json)) {
+        $previousProcesses=Get-Content -LiteralPath $processFile -Raw | ConvertFrom-Json
+        foreach ($entry in $previousProcesses) {
             $process=Get-Process -Id $entry.id -ErrorAction SilentlyContinue
             if ($process -and $process.StartTime.ToUniversalTime() -eq ([datetime]$entry.started).ToUniversalTime() -and $process.Path -eq $entry.path -and !($registry | Where-Object { $_.id -eq $entry.id })) { $registry+=@{id=$entry.id;started=([datetime]$entry.started).ToUniversalTime().ToString('o');path=$entry.path} }
         }
     }
     [IO.File]::WriteAllText($processFile,(ConvertTo-Json -InputObject @($registry)),(New-Object Text.UTF8Encoding $false))
     Write-Host '';Write-Host 'NewsApp: http://localhost:5173/';Write-Host 'Local account credentials: .local/accounts.txt';Write-Host 'Keep this window open. Ctrl+C stops the processes started by this window.'
+    if ($Cms) { Write-Host 'CMS: http://localhost:5173/cms' }
     if ($Lan) {
         $phoneUrl='http://'+$wifiNetwork.Ip+':5173/'
         Write-Host ('PHONE (same Wi-Fi): '+$phoneUrl) -ForegroundColor Green
         Write-Host 'Test mailbox: laptop only, http://localhost:5173/dev/mailbox'
         [IO.File]::WriteAllText((Join-Path $localRoot 'wifi-url.txt'),$phoneUrl,(New-Object Text.UTF8Encoding $false))
     }
-    if (!$NoOpen) { Start-Process 'http://localhost:5173/' }
+    if (!$NoOpen) {
+        $startUrl=if ($Cms) { 'http://localhost:5173/cms' } else { 'http://localhost:5173/' }
+        Start-Process $startUrl
+    }
     while ($true) { Start-Sleep -Seconds 2; if ($frontend -and $frontend.HasExited) { throw 'Frontend stopped. See .local/logs/frontend-error.log.' }; if ($backendProcess -and $backendProcess.HasExited) { throw 'Backend stopped. See .local/logs/backend-error.log.' } }
 } finally {
     foreach ($entry in $owned) { $process=Get-Process -Id $entry.id -ErrorAction SilentlyContinue; if ($process -and $process.StartTime.ToUniversalTime() -eq ([datetime]$entry.started).ToUniversalTime()) { Stop-Process -Id $entry.id -ErrorAction SilentlyContinue; Wait-Process -Id $entry.id -Timeout 10 -ErrorAction SilentlyContinue } }

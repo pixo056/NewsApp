@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { NavLink, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   Activity,
   ArrowUpRight,
@@ -20,7 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from './context';
-import { Avatar, ErrorState, Verified } from '../components/ui';
+import { Avatar, EmptyState, ErrorState, Loading, Verified } from '../components/ui';
 import {
   FeedPage,
   CommunitiesPage,
@@ -37,12 +37,13 @@ import {
   SettingsPage,
   AuthPage,
   ReportPage,
-  AdminPage,
   AboutPage,
   NotFoundPage,
   MailboxPage,
   NotificationsPage,
 } from '../pages/WorkspacePages';
+
+const CmsApp = lazy(() => import('../cms/CmsApp'));
 
 const navItems = [
   { to: '/', label: 'Лента новостей', icon: Home, end: true },
@@ -86,9 +87,9 @@ function Sidebar({ close }: { close: () => void }) {
       <div className="sidebar-rule" />
       <nav className="main-nav secondary-nav" aria-label="Настройки и модерация">
         {user?.canModerate && (
-          <NavLink to="/admin" onClick={close}>
+          <NavLink to="/cms" onClick={close}>
             <ShieldCheck size={20} />
-            Модерация
+            Управление сайтом
           </NavLink>
         )}
         <NavLink to="/settings" onClick={close}>
@@ -187,7 +188,7 @@ function RightRail() {
   );
 }
 export function App() {
-  const { toast, notify, user, notifications, error, refresh } = useApp();
+  const { toast, notify, user, notifications, error, refresh, loading } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -214,6 +215,40 @@ export function App() {
     ].includes(location.pathname) ||
     location.pathname.startsWith('/edit/') ||
     location.pathname.startsWith('/auth/');
+  if (/^\/cms(?:\/|$)/.test(location.pathname)) {
+    if (loading) return <Loading />;
+    if (error)
+      return (
+        <main className="cms-entry">
+          <ErrorState message={error} retry={() => void refresh()} />
+          <Link className="secondary-button" to="/">
+            Вернуться в ленту
+          </Link>
+        </main>
+      );
+    if (!user) return <Navigate to="/auth/login?returnTo=/cms" replace />;
+    if (!user.canModerate)
+      return (
+        <main className="cms-entry">
+          <EmptyState
+            title="Управление доступно редакции"
+            text="Панелью пользуются администрация платформы и владельцы пабликов. Свои новости можно редактировать в разделе «Мои публикации»."
+            action={
+              <Link className="primary-button" to="/my-posts">
+                Мои публикации
+              </Link>
+            }
+          />
+        </main>
+      );
+    return (
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          <Route path="/cms/*" element={<CmsApp key={user.id} />} />
+        </Routes>
+      </Suspense>
+    );
+  }
   return (
     <>
       <a className="skip-link" href="#main">
@@ -318,7 +353,7 @@ export function App() {
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/auth/:mode" element={<AuthPage />} />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin" element={<Navigate to="/cms" replace />} />
             <Route path="/dev/mailbox" element={<MailboxPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<NotFoundPage />} />

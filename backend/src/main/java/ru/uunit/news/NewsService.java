@@ -416,10 +416,14 @@ public class NewsService {
   public void editorialEdit(UUID id, Accounts.User editor, Input input) {
     accounts.verified(editor);
     Map<String, Object> before = db
-      .queryForList("SELECT * FROM news WHERE id=?", id)
+      .queryForList(
+        "SELECT n.*,c.official,c.owner_id FROM news n LEFT JOIN communities c ON c.id=n.community_id WHERE n.id=?",
+        id
+      )
       .stream()
       .findFirst()
       .orElseThrow(ApiException::missing);
+    if (!moderator(before, editor)) throw ApiException.forbidden();
     if (input == null) throw ApiException.bad("Заполните поля новости");
     if (input.mediaIds() == null) input = new Input(
       input.title(),

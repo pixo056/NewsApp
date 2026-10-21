@@ -21,14 +21,22 @@
     "mobile:sync": "pnpm build && cap sync",
     "mobile:android": "cap open android",
     "mobile:ios": "cap open ios",
-    "format:java": "prettier --plugin=prettier-plugin-java --write \"backend/src/**/*.java\" scripts/CreateDatabase.java"
+    "format:java": "prettier --plugin=prettier-plugin-java --write \"backend/src/**/*.java\" scripts/CreateDatabase.java",
+    "test:cms": "node --experimental-strip-types --test tests/cms-provider.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@capacitor/ios": "^8.5.3",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.5.0",
+    "@mui/material": "^9.5.0",
     "lucide-react": "^0.468.0",
+    "ra-i18n-polyglot": "^5.15.5",
+    "ra-language-russian": "^5.4.5",
     "react": "^19.0.0",
+    "react-admin": "^5.15.5",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0"
   },

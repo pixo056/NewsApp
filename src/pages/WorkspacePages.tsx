@@ -638,9 +638,9 @@ export function ProfilePage() {
             </Link>
           </div>
           {user.canModerate && (
-            <Link className="primary-button profile-moderation" to="/admin">
+            <Link className="primary-button profile-moderation" to="/cms">
               <ShieldCheck size={18} />
-              Кабинет модератора
+              Управление сайтом
             </Link>
           )}
         </>
@@ -766,7 +766,7 @@ export function AuthPage() {
                 body,
               });
               await refresh();
-              navigate('/profile');
+              navigate(params.get('returnTo') === '/cms' ? '/cms' : '/profile');
             } else if (register) {
               const result = await json<{ message: string }>(
                 '/auth/register',

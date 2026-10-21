@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AppProvider } from './app/AppContext';
 import { ErrorBoundary } from './app/ErrorBoundary';
 import { App } from './app/App';
@@ -13,14 +13,21 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+const router = createBrowserRouter([
+  {
+    path: '*',
+    element: (
+      <AppProvider>
+        <App />
+      </AppProvider>
+    ),
+  },
+]);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
-        <AppProvider>
-          <App />
-        </AppProvider>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </ErrorBoundary>
   </StrictMode>,
 );

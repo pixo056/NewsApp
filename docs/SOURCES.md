@@ -10,5 +10,6 @@
 - Фотографии приведены для локального прототипа с указанием источника. Перед публичным распространением проверить разрешение правообладателя.
 - Шрифт Manrope: https://fonts.google.com/specimen/Manrope (SIL OFL). Используются локальные TrueType-файлы начертаний 400/500/600/700/800 с кириллицей и латиницей. Лицензия включена в public/fonts/OFL.txt.
 - Иконки: lucide-react, ISC: https://github.com/lucide-icons/lucide
+- Панель CMS: React-admin (MIT), https://github.com/marmelab/react-admin; Material UI (MIT), https://github.com/mui/material-ui. Русская локализация: ra-language-russian, https://github.com/Klucherev/ra-language-russian.
 
 Название «Пульс» и его знак — временный брендинг проекта, не официальный логотип УУНиТ. Новости, профили пабликов, счётчики и события — вымышленные демонстрационные материалы, не реальные объявления университета.
