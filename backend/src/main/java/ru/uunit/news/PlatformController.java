@@ -193,25 +193,6 @@ public class PlatformController {
     else db.update("DELETE FROM bookmarks WHERE user_id=? AND news_id=?", user.id(), id);
   }
 
-  @RequestMapping(
-    value = "/news/{id}/reaction",
-    method = { RequestMethod.PUT, RequestMethod.DELETE }
-  )
-  void reaction(
-    @PathVariable UUID id,
-    Authentication auth,
-    jakarta.servlet.http.HttpServletRequest request
-  ) {
-    Accounts.User user = accounts.require(auth);
-    published(id);
-    if (request.getMethod().equals("PUT")) db.update(
-      "INSERT INTO reactions(user_id,news_id) VALUES(?,?) ON CONFLICT DO NOTHING",
-      user.id(),
-      id
-    );
-    else db.update("DELETE FROM reactions WHERE user_id=? AND news_id=?", user.id(), id);
-  }
-
   private void published(UUID id) {
     if (news.newsRow(id).get("published_revision_id") == null) throw ApiException.missing();
   }

@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { useNotify, useRecordContext, useRefresh } from 'react-admin';
 import { json } from '../api/client';
+import { useApp } from '../app/context';
 import type { CmsNews } from './contracts';
 
 export const dateOptions: Intl.DateTimeFormatOptions = {
@@ -204,6 +205,8 @@ export function ConfirmAction({
 }
 
 export function VisibilityAction({ newsId, hidden = false }: { newsId: string; hidden?: boolean }) {
+  const { user } = useApp();
+  if (user?.role !== 'ADMIN') return null;
   return (
     <ConfirmAction
       label={hidden ? 'Вернуть публикацию' : 'Скрыть новость'}

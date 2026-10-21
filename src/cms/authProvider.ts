@@ -35,7 +35,7 @@ export function createCmsAuthProvider(onLogout: () => Promise<void>): AuthProvid
     getPermissions: async () => (await moderator()).role,
     canAccess: async ({ resource }) => {
       const user = await moderator();
-      return !['users', 'audit'].includes(resource || '') || user.role === 'ADMIN';
+      return !['users', 'audit', 'reports'].includes(resource || '') || user.role === 'ADMIN';
     },
   };
 }

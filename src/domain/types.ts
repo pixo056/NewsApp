@@ -1,6 +1,13 @@
 export type Category =
   'Все' | 'Университет' | 'Технологии' | 'Наука' | 'Спорт' | 'Культура' | 'Общество';
 export type PostStatus = 'pending' | 'published' | 'rejected';
+export type ReactionKind = 'like' | 'celebrate' | 'insightful' | 'support';
+export type ReactionCounts = Record<ReactionKind, number>;
+export interface ReactionSnapshot {
+  counts: ReactionCounts;
+  selected: ReactionKind | null;
+  total: number;
+}
 export interface User {
   id: string;
   username: string;
@@ -51,6 +58,8 @@ export interface Post {
   views: string;
   reactions: number;
   liked: boolean;
+  reactionCounts?: ReactionCounts;
+  myReaction?: ReactionKind | null;
   status: PostStatus;
   rejectionReason?: string;
   source: string;

@@ -56,6 +56,8 @@ assert.equal((await owner.login('club.owner', config.ownerPassword)).status, 200
 assert.equal((await guest.request('/cms/news')).status, 401);
 assert.equal((await owner.request('/cms/users')).status, 403);
 assert.equal((await owner.request('/cms/audit')).status, 403);
+assert.equal((await owner.request('/cms/reports')).status, 403);
+assert.equal((await owner.ok('/cms/summary')).reports, 0);
 await guest.ok('/auth/register', { username, email, name: 'Проверка CMS', password });
 const letter = (await guest.ok('/dev/mailbox')).find((mail) => mail.recipient === email);
 await guest.ok('/auth/verify-email', {
@@ -78,6 +80,14 @@ try {
   assert.equal((await owner.ok(`/cms/news?q=${nonce}`)).total, 0);
   assert.equal((await owner.request(`/cms/news/${created.id}`)).status, 404);
   let post = await admin.ok(`/cms/news/${created.id}`);
+  assert.equal(
+    (await owner.request(`/admin/revisions/${post.revisionId}/approve`, {})).status,
+    403,
+  );
+  assert.equal(
+    (await owner.request(`/cms/news/${created.id}/visibility`, { hidden: false })).status,
+    403,
+  );
   await admin.ok(`/admin/revisions/${post.revisionId}/approve`, {});
   await admin.ok(`/cms/news/${created.id}`, { ...input, title: `Правка CMS ${nonce}` }, 'PATCH');
   assert.equal((await guest.ok(`/news/${created.id}`)).title, input.title);

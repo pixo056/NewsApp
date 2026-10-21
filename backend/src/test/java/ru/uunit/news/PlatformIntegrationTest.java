@@ -143,7 +143,7 @@ class PlatformIntegrationTest {
   }
 
   @Test
-  void ordinaryCreatorCanApproveOnlyOwnCommunity() throws Exception {
+  void onlyPlatformAdministratorsApproveOrdinaryCommunityNews() throws Exception {
     Accounts.User stranger = outsider();
     UUID id = submit(stranger, club());
     mvc
@@ -157,6 +157,20 @@ class PlatformIntegrationTest {
       .perform(
         post("/api/admin/revisions/" + pending(id) + "/approve")
           .with(user("club.owner"))
+          .with(csrf())
+      )
+      .andExpect(status().isForbidden());
+    mvc.perform(get("/api/news/" + id)).andExpect(status().isNotFound());
+    mvc
+      .perform(get("/api/me/news/" + id).with(user("club.owner")))
+      .andExpect(status().isNotFound());
+    mvc
+      .perform(get("/api/cms/news/" + id).with(user("club.owner")))
+      .andExpect(status().isNotFound());
+    mvc
+      .perform(
+        post("/api/admin/revisions/" + pending(id) + "/approve")
+          .with(user("uunit.admin"))
           .with(csrf())
       )
       .andExpect(status().isOk());
@@ -178,7 +192,7 @@ class PlatformIntegrationTest {
   @Test
   void editingAndRejectionPreservePublicRevision() throws Exception {
     UUID id = submit(owner(), club());
-    news.decide(pending(id), owner(), true, null);
+    news.decide(pending(id), admin(), true, null);
     news.submit(
       owner(),
       new NewsService.Input(
@@ -197,14 +211,14 @@ class PlatformIntegrationTest {
     mvc
       .perform(get("/api/me/news/" + id).with(user("club.owner")))
       .andExpect(jsonPath("title").value("Совершенно новый заголовок"));
-    news.decide(pending(id), owner(), false, "Уточните фактические обстоятельства");
+    news.decide(pending(id), admin(), false, "Уточните фактические обстоятельства");
     mvc
       .perform(get("/api/news/" + id))
       .andExpect(jsonPath("title").value("Заголовок тестовой новости"));
     mvc
       .perform(
         post("/api/admin/revisions/" + pending(id) + "/approve")
-          .with(user("club.owner"))
+          .with(user("uunit.admin"))
           .with(csrf())
       )
       .andExpect(status().isConflict());
@@ -220,7 +234,7 @@ class PlatformIntegrationTest {
       ),
       id
     );
-    news.decide(pending(id), owner(), true, null);
+    news.decide(pending(id), admin(), true, null);
     mvc
       .perform(get("/api/news/" + id))
       .andExpect(jsonPath("title").value("Совершенно новый заголовок"));
@@ -387,7 +401,7 @@ class PlatformIntegrationTest {
       null
     );
     mvc.perform(get("/api/media/" + assetId)).andExpect(status().isNotFound());
-    news.decide(pending(id), owner(), true, null);
+    news.decide(pending(id), admin(), true, null);
     mvc
       .perform(get("/api/media/" + assetId))
       .andExpect(status().isOk())
@@ -475,7 +489,7 @@ class PlatformIntegrationTest {
         ),
         null
       );
-      news.decide(pending(id), owner(), true, null);
+      news.decide(pending(id), admin(), true, null);
       mvc
         .perform(get("/api/media/" + assetId).header("Range", "bytes=0-100"))
         .andExpect(status().isPartialContent())
@@ -561,7 +575,7 @@ class PlatformIntegrationTest {
   @Test
   void bookmarksSubscriptionsSearchAndPaginationWork() throws Exception {
     UUID id = submit(owner(), club());
-    news.decide(pending(id), owner(), true, null);
+    news.decide(pending(id), admin(), true, null);
     mvc
       .perform(
         put("/api/news/" + id + "/bookmark")

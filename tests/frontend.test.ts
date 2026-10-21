@@ -6,7 +6,13 @@ import { authReturnTo } from '../src/domain/auth-return.ts';
 
 test('sign-in returns to the selected community submission without allowing external redirects', () => {
   const id = 'a3e14066-c7ea-4be1-a0dd-52ad72c5ee11';
-  for (const path of ['/cms', '/create', `/communities/${id}/submit`, `/create?community=${id}`]) {
+  for (const path of [
+    '/cms',
+    '/create',
+    `/communities/${id}/submit`,
+    `/create?community=${id}`,
+    `/news/${id}`,
+  ]) {
     assert.equal(authReturnTo(path), path);
   }
   for (const path of [

@@ -1,10 +1,9 @@
-import { ArrowLeft, ArrowUpRight, BadgeCheck, Bookmark, Eye, Heart, Flag } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, BadgeCheck, Bookmark, Eye, Flag } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Community, Post } from '../domain/types';
 import { useApp } from '../app/context';
-import { api } from '../api/client';
+import { ReactionPicker } from './ReactionPicker';
 export function Avatar({ community, size = '' }: { community: Community; size?: string }) {
   return (
     <span aria-hidden="true" className={`avatar ${community.color} ${size}`}>
@@ -145,27 +144,8 @@ export function PostMedia({ post }: { post: Post }) {
   );
 }
 export function PostCard({ post }: { post: Post }) {
-  const { saved, toggleSave, notify, communities, user } = useApp();
+  const { saved, toggleSave, communities } = useApp();
   const community = communities.find((c) => c.id === post.communityId);
-  const [liked, setLiked] = useState(post.liked);
-  const [count, setCount] = useState(post.reactions);
-  const [busy, setBusy] = useState(false);
-  async function react() {
-    if (!user) {
-      notify('Войдите в аккаунт, чтобы поставить реакцию');
-      return;
-    }
-    setBusy(true);
-    try {
-      await api(`/news/${post.id}/reaction`, { method: liked ? 'DELETE' : 'PUT' });
-      setCount(count + (liked ? -1 : 1));
-      setLiked(!liked);
-    } catch (e) {
-      notify((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <article className="post-card">
       <header className="post-author">
@@ -197,16 +177,7 @@ export function PostCard({ post }: { post: Post }) {
       </Link>
       <PostMedia post={post} />
       <footer className="post-actions">
-        <button
-          className={`reaction ${liked ? 'liked' : ''}`}
-          onClick={() => void react()}
-          disabled={busy}
-          aria-pressed={liked}
-          aria-label={`Нравится: ${count}`}
-        >
-          <Heart size={19} fill={liked ? 'currentColor' : 'none'} />
-          <span>{count}</span>
-        </button>
+        <ReactionPicker post={post} />
         <span className="views">
           <Eye size={17} />
           {post.views}

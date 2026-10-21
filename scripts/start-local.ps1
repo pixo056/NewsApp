@@ -41,7 +41,7 @@ $owned=@()
 try {
     if (!(Test-Backend)) {
         $javaExe=Join-Path $env:JAVA_HOME 'bin\java.exe'
-        $backendProcess=Start-Process -FilePath $javaExe -ArgumentList @('-jar',('"'+$jar+'"')) -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $localRoot 'logs\backend.log') -RedirectStandardError (Join-Path $localRoot 'logs\backend-error.log')
+        $backendProcess=Start-Process -FilePath $javaExe -ArgumentList @('-Xms64m','-Xmx512m','-jar',('"'+$jar+'"')) -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $localRoot 'logs\backend.log') -RedirectStandardError (Join-Path $localRoot 'logs\backend-error.log')
         $owned+=@{id=$backendProcess.Id;started=$backendProcess.StartTime.ToUniversalTime().ToString('o');path=$javaExe}
         $ready=$false
         for ($attempt=0;$attempt -lt 40;$attempt++) { if (Test-Backend) { $ready=$true;break }; if ($backendProcess.HasExited) { break }; Start-Sleep -Milliseconds 500 }

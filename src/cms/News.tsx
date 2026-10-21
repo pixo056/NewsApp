@@ -112,7 +112,7 @@ export function NewsList() {
 
 function ModerationActions() {
   const record = useRecordContext<CmsNews>();
-  if (!record || record.deleted || record.status !== 'pending') return null;
+  if (!record?.canModerate || record.deleted || record.status !== 'pending') return null;
   return (
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ my: 2 }}>
       <ConfirmAction

@@ -93,7 +93,7 @@ const input = {
 };
 const created = await student.ok('/news', { method: 'POST', body: input });
 assert.equal((await guest.request(`/news/${created.id}`)).status, 404);
-let item = (await owner.ok('/admin/revisions')).find((p) => p.id === created.id);
+let item = (await admin.ok('/admin/revisions')).find((p) => p.id === created.id);
 assert.ok(item);
 assert.equal(
   (
@@ -104,7 +104,13 @@ assert.equal(
   ).status,
   403,
 );
-await owner.ok(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} });
+assert.equal(
+  (await owner.request(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} }))
+    .status,
+  403,
+);
+assert.equal((await owner.request(`/cms/news/${created.id}`)).status, 404);
+await admin.ok(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} });
 assert.equal((await guest.ok(`/news/${created.id}`)).title, input.title);
 const firstView = await guest.ok(`/news/${created.id}/view`, { method: 'POST', body: {} });
 assert.deepEqual(firstView, { views: 1, counted: true });
@@ -124,6 +130,15 @@ assert.deepEqual(await student.ok(`/news/${created.id}/view`, { method: 'POST', 
 await student.ok(`/communities/${club.id}/subscription`, { method: 'PUT' });
 await student.ok(`/news/${created.id}/bookmark`, { method: 'PUT' });
 await student.ok(`/news/${created.id}/reaction`, { method: 'PUT' });
+assert.equal((await student.ok(`/news/${created.id}/reactions`)).selected, 'like');
+await student.ok(`/news/${created.id}/reaction`, { method: 'PUT', body: { kind: 'insightful' } });
+assert.deepEqual(await student.ok(`/news/${created.id}/reactions`), {
+  counts: { like: 0, celebrate: 0, insightful: 1, support: 0 },
+  selected: 'insightful',
+  total: 1,
+});
+assert.equal((await guest.ok(`/news/${created.id}`)).reactionCounts.insightful, 1);
+assert.equal((await student.ok(`/news/${created.id}`)).myReaction, 'insightful');
 assert.ok((await student.ok('/me/preferences')).saved.includes(created.id));
 await student.ok('/auth/logout', { method: 'POST', body: {} });
 await student.login(username, password);
@@ -132,18 +147,19 @@ assert.deepEqual(await student.ok(`/news/${created.id}/view`, { method: 'POST', 
   counted: false,
 });
 assert.ok((await student.ok('/me/preferences')).followed.includes(club.id));
+assert.equal((await student.ok(`/news/${created.id}/reactions`)).selected, 'insightful');
 const edited = { ...input, title: `Изменённая новость ${nonce}` };
 await student.ok(`/news/${created.id}/revisions`, { method: 'POST', body: edited });
 assert.equal((await guest.ok(`/news/${created.id}`)).title, input.title);
-item = (await owner.ok('/admin/revisions')).find((p) => p.id === created.id);
-await owner.ok(`/admin/revisions/${item.revisionId}/reject`, {
+item = (await admin.ok('/admin/revisions')).find((p) => p.id === created.id);
+await admin.ok(`/admin/revisions/${item.revisionId}/reject`, {
   method: 'POST',
   body: { reason: 'Дополните материал подробностями события' },
 });
 assert.equal((await guest.ok(`/news/${created.id}`)).title, input.title);
 await student.ok(`/news/${created.id}/revisions`, { method: 'POST', body: edited });
-item = (await owner.ok('/admin/revisions')).find((p) => p.id === created.id);
-await owner.ok(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} });
+item = (await admin.ok('/admin/revisions')).find((p) => p.id === created.id);
+await admin.ok(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} });
 assert.equal((await guest.ok(`/news/${created.id}`)).title, edited.title);
 assert.equal((await guest.ok(`/news?q=${nonce}`)).items.length, 1);
 assert.ok((await student.ok('/me/notifications')).length >= 3);
@@ -151,10 +167,10 @@ await student.ok(`/news/${created.id}/reports`, {
   method: 'POST',
   body: { reason: 'Проверка модерации', comment: 'Локальный автоматический тест' },
 });
-const report = (await owner.ok('/admin/reports')).find((r) => r.newsId === created.id);
+const report = (await admin.ok('/admin/reports')).find((r) => r.newsId === created.id);
 assert.ok(report);
-await owner.ok(`/admin/news/${created.id}/hide`, { method: 'POST', body: {} });
-await owner.ok(`/admin/reports/${report.id}`, {
+await admin.ok(`/admin/news/${created.id}/hide`, { method: 'POST', body: {} });
+await admin.ok(`/admin/reports/${report.id}`, {
   method: 'PATCH',
   body: { resolution: 'Автоматический тест завершён, тестовая новость скрыта' },
 });
@@ -185,5 +201,5 @@ assert.equal(
   400,
 );
 console.log(
-  'PASS: real HTTP registration, CSRF, verification, login, upload, group moderation, deduplicated views, revisions, persistence, search, reactions, reports, password reset and session invalidation.',
+  'PASS: real HTTP registration, CSRF, verification, login, upload, ADMIN premoderation, owner restrictions, deduplicated views, revisions, persistence, search, emoji reactions, reports, password reset and session invalidation.',
 );

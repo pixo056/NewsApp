@@ -111,7 +111,7 @@ class CmsMediaAccessIntegrationTest {
     UUID id = news.submit(author, input(group, photos), null);
     if (published) news.decide(
       db.queryForObject("SELECT latest_revision_id FROM news WHERE id=?", UUID.class, id),
-      owner(),
+      admin(),
       true,
       null
     );
@@ -140,19 +140,18 @@ class CmsMediaAccessIntegrationTest {
   }
 
   @Test
-  void ordinaryOwnerCanPreviewAnotherAuthorsHiddenAttachmentsWhileGuestsCannot() throws Exception {
+  void ordinaryOwnerCannotPreviewAnotherAuthorsHiddenAttachments() throws Exception {
     Accounts.User author = author();
     Accounts.User unrelated = author();
     UUID group = group();
     UUID photo = photo(author);
     UUID id = create(author, group, List.of(photo), true);
     mvc.perform(get("/api/media/" + photo)).andExpect(status().isOk());
-    cms.visibility(id, owner(), true);
+    cms.visibility(id, admin(), true);
     mvc
       .perform(get("/api/cms/news/" + id).with(user(owner().username())))
-      .andExpect(status().isOk())
-      .andExpect(jsonPath("media[0].id").value(photo.toString()));
-    readable(photo, owner());
+      .andExpect(status().isNotFound());
+    denied(photo, owner());
     readable(photo, author);
     readable(photo, admin());
     denied(photo, unrelated);
@@ -165,17 +164,17 @@ class CmsMediaAccessIntegrationTest {
     Accounts.User unrelated = author();
     UUID group = group();
     UUID id = create(author, group, List.of(), true);
-    UUID editorialPhoto = photo(owner());
+    UUID editorialPhoto = photo(admin());
     // An unbound upload remains private to its uploader and the administrator.
     denied(editorialPhoto, author);
     denied(editorialPhoto, unrelated);
     denied(editorialPhoto, null);
-    cms.editNews(id, owner(), input(group, List.of(editorialPhoto)));
+    cms.editNews(id, admin(), input(group, List.of(editorialPhoto)));
     readable(editorialPhoto, author);
-    readable(editorialPhoto, owner());
+    denied(editorialPhoto, owner());
     denied(editorialPhoto, unrelated);
     denied(editorialPhoto, null);
-    cms.visibility(id, owner(), true);
+    cms.visibility(id, admin(), true);
     readable(editorialPhoto, author);
     denied(editorialPhoto, unrelated);
     denied(editorialPhoto, null);
@@ -188,8 +187,8 @@ class CmsMediaAccessIntegrationTest {
     UUID group = group();
     UUID photo = photo(author);
     UUID id = create(author, group, List.of(photo), false);
-    readable(photo, owner());
-    cms.visibility(id, owner(), true);
+    denied(photo, owner());
+    cms.visibility(id, admin(), true);
     communities.settings(group, admin(), 5, true);
     denied(photo, owner());
     denied(photo, unrelated);

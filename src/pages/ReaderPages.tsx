@@ -16,6 +16,7 @@ import { categories } from '../data/categories';
 import type { Category, Page, Post } from '../domain/types';
 import { useApp } from '../app/context';
 import { api, json } from '../api/client';
+import { ReactionPicker } from '../components/ReactionPicker';
 import {
   AccountGate,
   Avatar,
@@ -361,7 +362,7 @@ export function CreateCommunityPage() {
     <AccountGate>
       <PageHeading
         title="Создайте своё сообщество"
-        subtitle="Вы станете владельцем и модератором новостей этого паблика."
+        subtitle="Вы станете владельцем паблика. Новости перед публикацией проверяет администрация."
         back="/communities"
       />
       <form
@@ -374,7 +375,7 @@ export function CreateCommunityPage() {
           try {
             const created = await json<{ id: string }>('/communities', Object.fromEntries(fields));
             await refresh();
-            notify('Паблик создан. Его новости проходят вашу модерацию.');
+            notify('Паблик создан. Предложите первую новость на проверку администрации.');
             navigate(`/communities/${created.id}`);
           } catch (err) {
             setError((err as Error).message);
@@ -459,11 +460,7 @@ export function CommunityPage() {
             {community.verified && <Verified />}
           </h1>
           <p>{community.description}</p>
-          <p className="field-note">
-            {community.verified
-              ? 'Публикации проверяет администрация платформы.'
-              : 'Публикации проверяет создатель паблика.'}
-          </p>
+          <p className="field-note">Публикации и изменения проверяет администрация платформы.</p>
           <div className="community-profile-bottom">
             <span>
               {community.members} подписчиков · {community.category}
@@ -660,6 +657,7 @@ export function ArticlePage() {
           </a>
         )}
         <div className="article-bottom">
+          {post.status === 'published' && <ReactionPicker post={post} />}
           <button className="secondary-button" onClick={() => void toggleSave(post.id)}>
             <Bookmark size={17} />
             {saved.includes(post.id) ? 'Сохранено' : 'Сохранить'}

@@ -9,6 +9,7 @@ import type { CmsSummary } from './contracts';
 
 export function CmsDashboard() {
   const { user } = useApp();
+  const admin = user?.role === 'ADMIN';
   const createPath = useCreatePath();
   const [summary, setSummary] = useState<CmsSummary>();
   const [userCount, setUserCount] = useState<number>();
@@ -17,11 +18,11 @@ export function CmsDashboard() {
   useEffect(() => {
     let active = true;
     setError('');
+    setSummary(undefined);
+    setUserCount(undefined);
     Promise.all([
       api<CmsSummary>('/cms/summary'),
-      user?.role === 'ADMIN'
-        ? api<{ total: number }>('/cms/users?page=1&perPage=1')
-        : Promise.resolve(undefined),
+      admin ? api<{ total: number }>('/cms/users?page=1&perPage=1') : Promise.resolve(undefined),
     ])
       .then(([counts, users]) => {
         if (active) {
@@ -35,29 +36,33 @@ export function CmsDashboard() {
     return () => {
       active = false;
     };
-  }, [user?.role, version]);
+  }, [admin, user?.id, version]);
   const listPath = (resource: string, status?: string) =>
     createPath({ resource, type: 'list' }) +
     (status ? `?filter=${encodeURIComponent(JSON.stringify({ status }))}` : '');
   const cards = [
     {
-      label: 'На проверке',
+      label: admin ? 'На проверке' : 'Мои заявки на проверке',
       value: summary?.pending,
       path: listPath('news', 'pending'),
       icon: ClipboardCheck,
       color: '#7c3aed',
       background: '#f2ebff',
     },
+    ...(admin
+      ? [
+          {
+            label: 'Открытые жалобы',
+            value: summary?.reports,
+            path: listPath('reports', 'pending'),
+            icon: Flag,
+            color: '#b45309',
+            background: '#fff4df',
+          },
+        ]
+      : []),
     {
-      label: 'Открытые жалобы',
-      value: summary?.reports,
-      path: listPath('reports', 'pending'),
-      icon: Flag,
-      color: '#b45309',
-      background: '#fff4df',
-    },
-    {
-      label: 'Все публикации',
+      label: admin ? 'Все публикации' : 'Мои публикации',
       value: summary?.news,
       path: listPath('news'),
       icon: Newspaper,
@@ -65,14 +70,14 @@ export function CmsDashboard() {
       background: '#eaf5fc',
     },
     {
-      label: 'Паблики',
+      label: admin ? 'Паблики' : 'Мои паблики',
       value: summary?.communities,
       path: listPath('communities'),
       icon: LibraryBig,
       color: '#047857',
       background: '#e8f7ef',
     },
-    ...(user?.role === 'ADMIN'
+    ...(admin
       ? [
           {
             label: 'Пользователи',
@@ -85,6 +90,23 @@ export function CmsDashboard() {
         ]
       : []),
   ];
+  const steps = admin
+    ? [
+        ['Откройте заявку', 'Во вкладке «Публикации» выберите состояние «На проверке».'],
+        ['Проверьте материал', 'Прочитайте текст, откройте источник и просмотрите вложения.'],
+        ['Примите решение', 'Одобрите новость или объясните автору, что нужно исправить.'],
+      ]
+    : [
+        ['Откройте свой паблик', 'Перейдите на его страницу в разделе «Паблики» основного сайта.'],
+        [
+          'Предложите материал',
+          'Нажмите «Предложить новость», заполните форму и отправьте её на проверку.',
+        ],
+        [
+          'Дождитесь решения',
+          'Администрация проверит новость. При отказе исправьте материал с учётом причины и отправьте ещё раз.',
+        ],
+      ];
   return (
     <Box sx={{ pb: 4 }}>
       <Title title="Обзор" />
@@ -118,20 +140,20 @@ export function CmsDashboard() {
                 mb: 1,
               }}
             >
-              ПУЛЬС · УПРАВЛЕНИЕ САЙТОМ
+              {admin ? 'ПУЛЬС · УПРАВЛЕНИЕ САЙТОМ' : 'ПУЛЬС · МОИ ПУБЛИКАЦИИ И ПАБЛИКИ'}
             </Typography>
             <Typography component="h1" variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
               Здравствуйте, {user?.name}!
             </Typography>
             <Typography sx={{ color: '#ede5ff', lineHeight: 1.7 }}>
-              {user?.role === 'ADMIN'
+              {admin
                 ? 'Проверяйте новости, помогайте авторам и следите за порядком на платформе. Всё необходимое — в одном кабинете.'
-                : 'Здесь собраны новости, заявки и жалобы ваших пабликов. Проверяйте материалы и развивайте своё сообщество.'}
+                : 'Здесь собраны ваши публикации и настройки пабликов. Все новости и правки проверяет администрация платформы.'}
             </Typography>
           </Box>
           <Button
             component={Link}
-            to={listPath('news', 'pending')}
+            to={listPath('news', admin ? 'pending' : undefined)}
             variant="contained"
             endIcon={<ArrowRight size={18} />}
             sx={{
@@ -142,7 +164,7 @@ export function CmsDashboard() {
               py: 1.5,
             }}
           >
-            Проверить заявки
+            {admin ? 'Проверить заявки' : 'Мои публикации'}
           </Button>
         </CardContent>
       </Card>
@@ -208,17 +230,10 @@ export function CmsDashboard() {
         <Card>
           <CardContent sx={{ p: 3 }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 800 }}>
-              Как выпустить новость
+              {admin ? 'Как выпустить новость' : 'Как предложить новость'}
             </Typography>
             <Stack spacing={2.5}>
-              {[
-                ['Откройте заявку', 'Во вкладке «Публикации» выберите состояние «На проверке».'],
-                [
-                  'Проверьте материал',
-                  'Прочитайте текст, откройте источник и просмотрите вложения.',
-                ],
-                ['Примите решение', 'Одобрите новость или объясните автору, что нужно исправить.'],
-              ].map(([title, text], index) => (
+              {steps.map(([title, text], index) => (
                 <Stack direction="row" spacing={2} key={title}>
                   <Box
                     sx={{
@@ -252,8 +267,12 @@ export function CmsDashboard() {
               Под рукой
             </Typography>
             <Stack spacing={1} sx={{ alignItems: 'flex-start' }}>
-              <Button component="a" href="/create" endIcon={<ArrowRight size={17} />}>
-                Предложить свою новость
+              <Button
+                component="a"
+                href={admin ? '/create' : '/communities'}
+                endIcon={<ArrowRight size={17} />}
+              >
+                {admin ? 'Предложить свою новость' : 'Предложить новость в паблик'}
               </Button>
               <Button
                 component={Link}
@@ -262,13 +281,15 @@ export function CmsDashboard() {
               >
                 Настроить паблики
               </Button>
-              <Button
-                component={Link}
-                to={listPath('reports', 'pending')}
-                endIcon={<ArrowRight size={17} />}
-              >
-                Рассмотреть жалобы
-              </Button>
+              {admin && (
+                <Button
+                  component={Link}
+                  to={listPath('reports', 'pending')}
+                  endIcon={<ArrowRight size={17} />}
+                >
+                  Рассмотреть жалобы
+                </Button>
+              )}
               <Button component="a" href="/" endIcon={<ArrowRight size={17} />}>
                 Открыть сайт для читателей
               </Button>

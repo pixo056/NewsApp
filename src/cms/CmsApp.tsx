@@ -156,15 +156,17 @@ export default function CmsApp() {
         edit={CommunityEdit}
         recordRepresentation="name"
       />
-      <Resource
-        name="reports"
-        options={{ label: 'Жалобы' }}
-        icon={Flag}
-        list={ReportList}
-        show={ReportShow}
-        edit={ReportEdit}
-        recordRepresentation="title"
-      />
+      {user?.role === 'ADMIN' && (
+        <Resource
+          name="reports"
+          options={{ label: 'Жалобы' }}
+          icon={Flag}
+          list={ReportList}
+          show={ReportShow}
+          edit={ReportEdit}
+          recordRepresentation="title"
+        />
+      )}
       {user?.role === 'ADMIN' && (
         <Resource
           name="users"

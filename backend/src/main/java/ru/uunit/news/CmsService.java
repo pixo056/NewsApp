@@ -139,6 +139,7 @@ public class CmsService {
     if (accounts.admin(user)) return;
     if (
       resource.equals("audit") ||
+      resource.equals("reports") ||
       db.queryForObject(
         "SELECT count(*) FROM communities WHERE owner_id=? AND NOT official",
         Integer.class,
@@ -147,10 +148,15 @@ public class CmsService {
     ) throw ApiException.forbidden();
   }
 
-  private String scope(Accounts.User user, List<Object> args) {
+  private String scope(String resource, Accounts.User user, List<Object> args) {
     if (accounts.admin(user)) return "TRUE";
     args.add(user.id());
-    return "c.owner_id=? AND NOT c.official";
+    String scope = "c.owner_id=? AND NOT c.official";
+    if (resource.equals("news")) {
+      args.add(user.id());
+      scope += " AND n.author_id=? AND NOT n.deleted";
+    }
+    return scope;
   }
 
   private String where(
@@ -161,7 +167,7 @@ public class CmsService {
     List<Object> args
   ) {
     Spec spec = spec(resource);
-    StringBuilder where = new StringBuilder(" WHERE ").append(scope(user, args));
+    StringBuilder where = new StringBuilder(" WHERE ").append(scope(resource, user, args));
     if (id != null) {
       where.append(" AND ").append(spec.id()).append("=?");
       args.add(id);
@@ -331,7 +337,9 @@ public class CmsService {
   public Map<String, Long> summary(Accounts.User user) {
     access("news", user);
     List<Object> args = new ArrayList<>();
-    String where = " WHERE " + scope(user, args);
+    String where = " WHERE " + scope("news", user, args);
+    List<Object> groupArgs = new ArrayList<>();
+    String groupWhere = " WHERE " + scope("communities", user, groupArgs);
     return Map.of(
       "news",
       db.queryForObject(
@@ -348,15 +356,21 @@ public class CmsService {
         args.toArray()
       ),
       "reports",
-      db.queryForObject(
-        "SELECT count(*) FROM reports r JOIN news n ON n.id=r.news_id LEFT JOIN communities c ON c.id=n.community_id" +
-          where +
-          " AND r.status='pending'",
-        Long.class,
-        args.toArray()
-      ),
+      accounts.admin(user)
+        ? db.queryForObject(
+            "SELECT count(*) FROM reports r JOIN news n ON n.id=r.news_id LEFT JOIN communities c ON c.id=n.community_id" +
+              where +
+              " AND r.status='pending'",
+            Long.class,
+            args.toArray()
+          )
+        : 0L,
       "communities",
-      db.queryForObject("SELECT count(*) FROM communities c" + where, Long.class, args.toArray())
+      db.queryForObject(
+        "SELECT count(*) FROM communities c" + groupWhere,
+        Long.class,
+        groupArgs.toArray()
+      )
     );
   }
 
@@ -394,6 +408,7 @@ public class CmsService {
 
   @Transactional
   public Map<String, Object> visibility(UUID id, Accounts.User user, boolean hidden) {
+    if (!accounts.admin(user)) throw ApiException.forbidden();
     access("news", user);
     Map<String, Object> row = lockNews(id, user);
     if (!Objects.equals(row.get("deleted"), hidden)) {

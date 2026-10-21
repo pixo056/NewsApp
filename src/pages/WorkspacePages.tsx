@@ -201,10 +201,7 @@ export function ComposePage() {
                       <strong>{selected.name}</strong>
                     </Link>
                     <p className="field-note">
-                      {selected.verified
-                        ? 'Новость проверит администрация платформы.'
-                        : 'Новость проверит создатель этого паблика.'}{' '}
-                      Автор заявки: {user?.name}.
+                      Новость проверит администрация платформы. Автор заявки: {user?.name}.
                     </p>
                   </>
                 ) : (
@@ -1120,8 +1117,8 @@ export function ReportPage() {
 }
 export function AdminPage() {
   const { user, communities, refresh, notify } = useApp();
-  const queue = useResource<Post[]>(user?.canModerate ? '/admin/revisions' : null);
-  const reports = useResource<Report[]>(user?.canModerate ? '/admin/reports' : null);
+  const queue = useResource<Post[]>(user?.role === 'ADMIN' ? '/admin/revisions' : null);
+  const reports = useResource<Report[]>(user?.role === 'ADMIN' ? '/admin/reports' : null);
   const audit = useResource<
     { id: string; action: string; detail: string; username: string; createdAt: string }[]
   >(user?.role === 'ADMIN' ? '/admin/audit' : null);
@@ -1152,10 +1149,10 @@ export function AdminPage() {
   }
   return (
     <AccountGate>
-      {!user?.canModerate ? (
+      {user?.role !== 'ADMIN' ? (
         <EmptyState
           title="Кабинет доступен модераторам"
-          text="Создайте обычный паблик, чтобы модерировать его новости. Официальные паблики проверяет администрация платформы."
+          text="Публикации и правки проверяет администрация платформы. Свои материалы можно отправлять и редактировать в разделе «Мои публикации»."
           action={
             <Link className="primary-button" to="/communities/new">
               Создать паблик
@@ -1166,11 +1163,7 @@ export function AdminPage() {
         <>
           <PageHeading
             title="Кабинет модератора"
-            subtitle={
-              user.role === 'ADMIN'
-                ? 'Администрация платформы: все публикации и официальные паблики.'
-                : 'Вы проверяете новости своих обычных пабликов.'
-            }
+            subtitle="Администрация платформы: все публикации и паблики."
             action={
               <span className="moderator-badge">
                 <ShieldCheck size={17} />
@@ -1412,8 +1405,8 @@ export function AdminPage() {
             <section className="panel limits-panel">
               <h2>{user.role === 'ADMIN' ? 'Паблики и лимиты' : 'Ваши паблики'}</h2>
               <p className="muted">
-                Официальный статус и лимиты назначает администратор платформы. Создатель обычного
-                паблика проверяет его публикации.
+                Официальный статус и лимиты назначает администратор платформы. Новости и правки во
+                всех пабликах проверяет администрация.
               </p>
               <div className="search-communities">
                 {communities
@@ -1519,8 +1512,8 @@ export function AboutPage() {
         <h3 id="rules">Правила сообщества</h3>
         <p>
           Проверяйте факты, уважайте других и указывайте источники. Каждая новость и её изменения
-          проходят предмодерацию. Личные новости и официальные паблики проверяет администрация
-          платформы. Обычные паблики модерируют их создатели.
+          проходят предмодерацию у администрации платформы. Это правило действует для личных
+          публикаций и всех пабликов.
         </p>
         <h3>Ваши данные</h3>
         <p>

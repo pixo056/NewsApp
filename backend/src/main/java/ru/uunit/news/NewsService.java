@@ -1,5 +1,6 @@
 package ru.uunit.news;
 
+import com.fasterxml.jackson.databind.node.NullNode;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -39,12 +40,17 @@ public class NewsService {
   }
 
   public boolean moderator(Map<String, Object> row, Accounts.User user) {
+    return accounts.admin(user);
+  }
+
+  private boolean editorialAuthor(Map<String, Object> row, Accounts.User user) {
     return (
       accounts.admin(user) ||
       (user != null &&
-        row.get("community_id") != null &&
+        user.id().equals(row.get("author_id")) &&
+        user.id().equals(row.get("owner_id")) &&
         !Boolean.TRUE.equals(row.get("official")) &&
-        user.id().equals(row.get("owner_id")))
+        !Boolean.TRUE.equals(row.get("deleted")))
     );
   }
 
@@ -92,24 +98,25 @@ public class NewsService {
           row.get("latest_revision_id")
         )
     );
-    p.put(
-      "reactions",
-      db.queryForObject(
-        "SELECT count(*) FROM reactions WHERE news_id=?",
-        Integer.class,
-        row.get("id")
-      )
-    );
-    p.put(
-      "liked",
-      user != null &&
-        db.queryForObject(
-          "SELECT count(*) FROM reactions WHERE news_id=? AND user_id=?",
-          Integer.class,
-          row.get("id"),
-          user.id()
-        ) > 0
-    );
+    Map<String, Long> reactionCounts = new LinkedHashMap<>();
+    ReactionService.KINDS.forEach(kind -> reactionCounts.put(kind, 0L));
+    String myReaction = null;
+    long totalReactions = 0;
+    for (Map<String, Object> reaction : db.queryForList(
+      "SELECT kind,count(*) AS total,bool_or(user_id=?::uuid) AS selected FROM reactions WHERE news_id=? GROUP BY kind",
+      user == null ? null : user.id(),
+      row.get("id")
+    )) {
+      String kind = (String) reaction.get("kind");
+      long total = ((Number) reaction.get("total")).longValue();
+      reactionCounts.put(kind, total);
+      totalReactions += total;
+      if (Boolean.TRUE.equals(reaction.get("selected"))) myReaction = kind;
+    }
+    p.put("reactionCounts", reactionCounts);
+    p.put("myReaction", myReaction == null ? NullNode.getInstance() : myReaction);
+    p.put("reactions", totalReactions);
+    p.put("liked", "like".equals(myReaction));
     List<Map<String, Object>> media = db
       .queryForList(
         "SELECT m.* FROM revision_media rm JOIN media_assets m ON m.id=rm.media_id WHERE rm.revision_id=? ORDER BY rm.sort_order",
@@ -257,7 +264,11 @@ public class NewsService {
     Validated validated = validateInput(user, input, existing);
     List<UUID> ids = validated.ids();
     String text = validated.text();
-    db.queryForObject("SELECT id FROM app_users WHERE id=? FOR UPDATE", UUID.class, user.id());
+    db.queryForObject(
+      "SELECT id FROM app_users WHERE id=? FOR NO KEY UPDATE",
+      UUID.class,
+      user.id()
+    );
     Map<String, Object> community = null;
     if (input.communityId != null) {
       community = db
@@ -423,7 +434,7 @@ public class NewsService {
       .stream()
       .findFirst()
       .orElseThrow(ApiException::missing);
-    if (!moderator(before, editor)) throw ApiException.forbidden();
+    if (!editorialAuthor(before, editor)) throw ApiException.forbidden();
     if (input == null) throw ApiException.bad("Заполните поля новости");
     if (input.mediaIds() == null) input = new Input(
       input.title(),
@@ -438,7 +449,11 @@ public class NewsService {
       )
     );
     Validated validated = validateInput(editor, input, id);
-    db.queryForObject("SELECT id FROM app_users WHERE id=? FOR UPDATE", UUID.class, editor.id());
+    db.queryForObject(
+      "SELECT id FROM app_users WHERE id=? FOR NO KEY UPDATE",
+      UUID.class,
+      editor.id()
+    );
     Map<String, Object> community = null;
     if (before.get("community_id") != null) community = db
       .queryForList("SELECT * FROM communities WHERE id=? FOR UPDATE", before.get("community_id"))
@@ -455,11 +470,11 @@ public class NewsService {
       permission.put("official", community.get("official"));
       permission.put("owner_id", community.get("owner_id"));
     }
-    if (!moderator(permission, editor)) throw ApiException.forbidden();
+    if (!editorialAuthor(permission, editor)) throw ApiException.forbidden();
     if (!Objects.equals(input.communityId(), row.get("community_id"))) throw ApiException.bad(
       "При редактировании нельзя изменить паблик"
     );
-    checkQuota(editor, community, input.communityId(), false);
+    checkQuota(editor, community, input.communityId(), !accounts.admin(editor));
     withdrawPending(row);
     saveRevision(id, input, validated.text(), validated.ids());
     db.update(
