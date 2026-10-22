@@ -57,12 +57,25 @@ const i18nProvider = polyglotI18nProvider(
   [{ locale: 'ru', name: 'Русский' }],
 );
 
-const cmsTheme = {
+const cmsTheme = (mode: 'light' | 'dark') => ({
   ...defaultTheme,
   palette: {
-    primary: { main: '#6d28d9' },
+    mode,
+    primary: { main: mode === 'dark' ? '#b39aff' : '#6d28d9' },
     secondary: { main: '#84cc16' },
-    background: { default: '#f6f4fa', paper: '#fff' },
+    success: { main: mode === 'dark' ? '#81c784' : '#2e7d32' },
+    error: { main: mode === 'dark' ? '#ff9da7' : '#d32f2f' },
+    warning: { main: mode === 'dark' ? '#ffcc80' : '#ed6c02' },
+    info: { main: mode === 'dark' ? '#90caf9' : '#0288d1' },
+    background: {
+      default: mode === 'dark' ? '#17151e' : '#f7f8fa',
+      paper: mode === 'dark' ? '#23202b' : '#fff',
+    },
+    text: {
+      primary: mode === 'dark' ? '#eeebf6' : '#252336',
+      secondary: mode === 'dark' ? '#bbb4c9' : '#656173',
+    },
+    divider: mode === 'dark' ? '#36313f' : '#eeedf2',
   },
   shape: { borderRadius: 12 },
   typography: {
@@ -72,11 +85,23 @@ const cmsTheme = {
   components: {
     ...defaultTheme.components,
     MuiButton: { styleOverrides: { root: { borderRadius: 9 } } },
-    MuiCard: { styleOverrides: { root: { border: '1px solid #e6e0ee', boxShadow: 'none' } } },
-    MuiTableHead: { styleOverrides: { root: { backgroundColor: '#faf8fd' } } },
-    MuiTableCell: { styleOverrides: { root: { borderColor: '#eee9f4' } } },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          border: `1px solid ${mode === 'dark' ? '#36313f' : '#eeedf2'}`,
+          boxShadow: 'none',
+          backgroundImage: 'none',
+        },
+      },
+    },
+    MuiTableHead: {
+      styleOverrides: { root: { backgroundColor: mode === 'dark' ? '#2b2635' : '#faf8fd' } },
+    },
+    MuiTableCell: {
+      styleOverrides: { root: { borderColor: mode === 'dark' ? '#36313f' : '#eeedf2' } },
+    },
   },
-};
+});
 
 function CmsAppBar(props: AppBarProps) {
   return (
@@ -84,9 +109,16 @@ function CmsAppBar(props: AppBarProps) {
       {...props}
       color="inherit"
       elevation={0}
-      sx={{ borderBottom: '1px solid #e6e0ee', bgcolor: '#fff' }}
+      sx={{
+        borderBottom: 1,
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        color: 'text.primary',
+      }}
     >
-      <Typography sx={{ fontWeight: 900, color: '#6d28d9', mr: { xs: 1, sm: 3 }, fontSize: 23 }}>
+      <Typography
+        sx={{ fontWeight: 900, color: 'primary.main', mr: { xs: 1, sm: 3 }, fontSize: 23 }}
+      >
         пульс.
       </Typography>
       <TitlePortal />
@@ -121,8 +153,9 @@ function CmsLayout(props: LayoutProps) {
 }
 
 export default function CmsApp() {
-  const { user, refresh } = useApp();
+  const { user, refresh, resolvedTheme } = useApp();
   const authProvider = useMemo(() => createCmsAuthProvider(refresh), [refresh]);
+  const theme = useMemo(() => cmsTheme(resolvedTheme), [resolvedTheme]);
   return (
     <Admin
       basename="/cms"
@@ -132,7 +165,7 @@ export default function CmsApp() {
       i18nProvider={i18nProvider}
       dashboard={CmsDashboard}
       layout={CmsLayout}
-      theme={cmsTheme}
+      theme={theme}
       darkTheme={null}
       loginPage={false}
       requireAuth

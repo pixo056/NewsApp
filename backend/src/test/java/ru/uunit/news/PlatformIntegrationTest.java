@@ -572,6 +572,7 @@ class PlatformIntegrationTest {
   void bookmarksSubscriptionsSearchAndPaginationWork() throws Exception {
     UUID id = submit(owner(), club());
     news.decide(pending(id), admin(), true, null);
+    news.decideMain(pending(id), admin(), true, null);
     mvc
       .perform(
         put("/api/news/" + id + "/bookmark")

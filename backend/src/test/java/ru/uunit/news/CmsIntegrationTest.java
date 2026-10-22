@@ -826,7 +826,7 @@ class CmsIntegrationTest {
       db.update("DELETE FROM notifications WHERE news_id=?", id);
       db.update("DELETE FROM audit_log WHERE target_id=? OR target_id=?", id, revision);
       db.update(
-        "UPDATE news SET latest_revision_id=NULL,published_revision_id=NULL WHERE id=?",
+        "UPDATE news SET latest_revision_id=NULL,published_revision_id=NULL,main_revision_id=NULL WHERE id=?",
         id
       );
       db.update("DELETE FROM news_revisions WHERE news_id=?", id);

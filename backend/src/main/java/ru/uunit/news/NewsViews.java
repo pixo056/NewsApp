@@ -95,10 +95,12 @@ public class NewsViews {
     // A bounded batch prevents a busy article from triggering an unbounded retention sweep.
     db.update(
       """
-      DELETE FROM news_viewers WHERE (news_id,viewer_key) IN (
+      WITH expired AS MATERIALIZED (
         SELECT news_id,viewer_key FROM news_viewers WHERE viewed_at<?
         ORDER BY viewed_at LIMIT 500 FOR UPDATE SKIP LOCKED
       )
+      DELETE FROM news_viewers v USING expired e
+      WHERE v.news_id=e.news_id AND v.viewer_key=e.viewer_key
       """,
       cutoff
     );

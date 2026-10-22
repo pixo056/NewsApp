@@ -322,7 +322,7 @@ public class MediaService {
     boolean allowed = user != null && user.id().equals(media.get("owner_id"));
     if (!allowed) allowed =
       db.queryForObject(
-        "SELECT count(*) FROM revision_media rm JOIN news n ON n.published_revision_id=rm.revision_id WHERE rm.media_id=? AND NOT n.deleted",
+        "SELECT count(*) FROM revision_media rm JOIN news n ON (n.published_revision_id=rm.revision_id OR n.main_revision_id=rm.revision_id) WHERE rm.media_id=? AND NOT n.deleted",
         Integer.class,
         id
       ) > 0;

@@ -112,7 +112,7 @@ function Sidebar({ close }: { close: () => void }) {
   );
 }
 function RightRail() {
-  const { communities, followed, toggleFollow, posts } = useApp();
+  const { recommended, toggleFollow, posts } = useApp();
   return (
     <aside className="right-rail" aria-label="Новости и рекомендации">
       <section className="rail-section">
@@ -122,7 +122,7 @@ function RightRail() {
         </div>
         <p className="rail-caption">Новые истории университетской жизни</p>
         {posts.slice(0, 2).map((p) => (
-          <Link to={`/news/${p.id}`} key={p.id} className="event">
+          <Link to={`/news/${p.id}?revision=${p.revisionId}`} key={p.id} className="event">
             <span className="event-date">
               <b>{new Date(p.publishedAt).getDate()}</b>
               {new Date(p.publishedAt).toLocaleDateString('ru', { month: 'short' })}
@@ -140,31 +140,29 @@ function RightRail() {
           <h2>Найдите своих</h2>
           <Users size={17} />
         </div>
-        <p className="rail-caption">Сообщества по вашим интересам</p>
-        {communities
-          .filter((c) => !followed.includes(c.id))
-          .slice(0, 3)
-          .map((c) => (
-            <div className="recommended" key={c.id}>
-              <Link to={`/communities/${c.id}`}>
-                <Avatar community={c} />
-                <span>
-                  <strong>
-                    {c.name}
-                    {c.verified && <Verified />}
-                  </strong>
-                  <small>{c.members} подписчиков</small>
-                </span>
-              </Link>
-              <button
-                className="follow-icon"
-                onClick={() => void toggleFollow(c.id)}
-                aria-label={`Подписаться на ${c.name}`}
-              >
-                +
-              </button>
-            </div>
-          ))}
+        <p className="rail-caption">Активные паблики с новыми публикациями</p>
+        {!recommended.length && <p className="muted">Пока нет новых рекомендаций</p>}
+        {recommended.map((c) => (
+          <div className="recommended" key={c.id}>
+            <Link to={`/communities/${c.id}`}>
+              <Avatar community={c} />
+              <span>
+                <strong>
+                  {c.name}
+                  {c.verified && <Verified />}
+                </strong>
+                <small>{c.members} подписчиков</small>
+              </span>
+            </Link>
+            <button
+              className="follow-icon"
+              onClick={() => void toggleFollow(c.id)}
+              aria-label={`Подписаться на ${c.name}`}
+            >
+              +
+            </button>
+          </div>
+        ))}
         <Link to="/communities" className="text-link all-communities">
           Все паблики <ArrowUpRight size={15} />
         </Link>

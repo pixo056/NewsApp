@@ -366,7 +366,7 @@ class ReactionIntegrationTest {
       id,
       id
     );
-    db.update("UPDATE news SET latest_revision_id=NULL,published_revision_id=NULL WHERE id=?", id);
+    db.update("UPDATE news SET latest_revision_id=NULL,published_revision_id=NULL,main_revision_id=NULL WHERE id=?", id);
     db.update("DELETE FROM news_revisions WHERE news_id=?", id);
     db.update("DELETE FROM news WHERE id=?", id);
   }

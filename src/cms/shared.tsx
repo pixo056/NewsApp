@@ -48,6 +48,10 @@ export function NewsStatus({ record: supplied }: { record?: CmsNews }) {
   const record = supplied || context;
   if (!record) return null;
   if (record.deleted) return <Chip size="small" label="Скрыта" variant="outlined" />;
+  if (record.status === 'published' && record.mainStatus === 'pending')
+    return <Chip size="small" label="В паблике · общая лента на проверке" color="warning" />;
+  if (record.status === 'published' && record.mainStatus === 'rejected')
+    return <Chip size="small" label="В паблике · отказ в общей ленте" color="warning" />;
   if (record.hasPendingChanges)
     return <Chip size="small" label="Правки на проверке" color="warning" />;
   const statuses = {
@@ -78,7 +82,7 @@ export function NewsMedia() {
               maxHeight: 420,
               objectFit: 'contain',
               borderRadius: 2,
-              bgcolor: '#f5f3f8',
+              bgcolor: 'action.hover',
             }}
           />
         ) : (
@@ -215,7 +219,7 @@ export function VisibilityAction({ newsId, hidden = false }: { newsId: string; h
       description={
         hidden
           ? 'Одобренная версия снова станет доступна читателям. Если новость ещё не одобрена, она останется на проверке.'
-          : 'Новость исчезнет из общей ленты и сохранённого. Её история останется, и публикацию можно будет вернуть.'
+          : 'Новость исчезнет из общей ленты, паблика, подписок и сохранённого. История останется; восстановить публикацию может ADMIN.'
       }
       request={() => json(`/cms/news/${newsId}/visibility`, { hidden: !hidden })}
       success={hidden ? 'Публикация восстановлена' : 'Новость скрыта из ленты'}

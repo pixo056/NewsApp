@@ -29,6 +29,7 @@ public class NewsService {
   private final Communities communities;
   private static final String SELECT = """
   SELECT n.*,r.id AS revision_id,r.title,r.body,r.category,r.source_url,r.status,r.rejection_reason,r.submitted_at,
+  r.main_status,r.main_rejection_reason,
   u.display_name AS author,c.official,c.owner_id FROM news n JOIN news_revisions r ON r.id=%s
   JOIN app_users u ON u.id=n.author_id LEFT JOIN communities c ON c.id=n.community_id
   """;
@@ -79,13 +80,27 @@ public class NewsService {
     p.put("source", row.get("source_url"));
     p.put("authorId", row.get("author_id"));
     p.put("communityId", row.get("community_id"));
+    p.put(
+      "ordinaryCommunity",
+      row.get("community_id") != null && !Boolean.TRUE.equals(row.get("official"))
+    );
     p.put("revisionId", row.get("revision_id"));
+    p.put("mainStatus", row.get("main_status"));
+    p.put("mainRejectionReason", row.get("main_rejection_reason"));
+    p.put(
+      "canReviewMain",
+      accounts.admin(user) &&
+        "published".equals(row.get("status")) &&
+        "pending".equals(row.get("main_status"))
+    );
     p.put(
       "publishedAt",
       (
-        (Timestamp) (row.get("published_at") != null
-          ? row.get("published_at")
-          : row.get("submitted_at"))
+        (Timestamp) (row.get("display_published_at") != null
+          ? row.get("display_published_at")
+          : row.get("published_at") != null
+            ? row.get("published_at")
+            : row.get("submitted_at"))
       )
         .toInstant()
         .toString()
@@ -170,19 +185,33 @@ public class NewsService {
     boolean saved
   ) {
     limit = Math.max(1, Math.min(limit, 50));
+    if (query != null && query.length() > 200) throw ApiException.bad("Слишком длинный запрос");
+    String normalized = db.queryForObject("SELECT news_search(?)", String.class, query);
+    boolean searching = !normalized.isEmpty();
+    boolean main = community == null && !subscriptions && !saved;
+    String date = main ? "n.main_published_at" : "n.published_at";
     List<Object> args = new ArrayList<>();
+    String rank = searching
+      ? "CASE WHEN news_search(r.title)=? THEN 3 WHEN starts_with(news_search(r.title),?) THEN 2 WHEN strpos(news_search(r.title),?)>0 THEN 1 ELSE 0 END"
+      : "0";
+    if (searching) args.addAll(List.of(normalized, normalized, normalized));
     StringBuilder sql = new StringBuilder(
-      SELECT.formatted("n.published_revision_id") + " WHERE NOT n.deleted"
+      SELECT.formatted(main ? "n.main_revision_id" : "n.published_revision_id").replace(
+        "SELECT n.*",
+        "SELECT score.rank AS search_rank," + date + " AS display_published_at,n.*"
+      ) +
+        " CROSS JOIN LATERAL (SELECT " +
+        rank +
+        " AS rank) score WHERE NOT n.deleted"
     );
     if (category != null && !category.isBlank() && !category.equals("Все")) {
       sql.append(" AND r.category=?");
       args.add(category);
     }
-    if (query != null && !query.isBlank()) {
-      if (query.length() > 200) throw ApiException.bad("Слишком длинный запрос");
-      sql.append(" AND (r.title ILIKE ? OR r.body ILIKE ?)");
-      args.add("%" + query + "%");
-      args.add("%" + query + "%");
+    if (searching) {
+      sql.append(" AND (strpos(news_search(r.title),?)>0 OR strpos(news_search(r.body),?)>0)");
+      args.add(normalized);
+      args.add(normalized);
     }
     if (community != null) {
       sql.append(" AND n.community_id=?");
@@ -205,15 +234,16 @@ public class NewsService {
         String[] parts = new String(
           Base64.getUrlDecoder().decode(cursor),
           StandardCharsets.UTF_8
-        ).split("\\|", 2);
-        sql.append(" AND (n.published_at,n.id)<(?,?)");
-        args.add(Timestamp.from(Instant.parse(parts[0])));
-        args.add(UUID.fromString(parts[1]));
+        ).split("\\|", 3);
+        sql.append(" AND (score.rank," + date + ",n.id)<(?,?,?)");
+        args.add(Integer.parseInt(parts[0]));
+        args.add(Timestamp.from(Instant.parse(parts[1])));
+        args.add(UUID.fromString(parts[2]));
       } catch (RuntimeException e) {
         throw ApiException.bad("Некорректный курсор ленты");
       }
     }
-    sql.append(" ORDER BY n.published_at DESC,n.id DESC LIMIT ?");
+    sql.append(" ORDER BY score.rank DESC," + date + " DESC,n.id DESC LIMIT ?");
     args.add(limit + 1);
     List<Map<String, Object>> rows = db.queryForList(sql.toString(), args.toArray());
     boolean more = rows.size() > limit;
@@ -221,7 +251,12 @@ public class NewsService {
     String next = null;
     if (more) {
       Map<String, Object> last = visible.getLast();
-      String raw = ((Timestamp) last.get("published_at")).toInstant() + "|" + last.get("id");
+      String raw =
+        last.get("search_rank") +
+        "|" +
+        ((Timestamp) last.get("display_published_at")).toInstant() +
+        "|" +
+        last.get("id");
       next = Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(raw.getBytes(StandardCharsets.UTF_8));
@@ -236,11 +271,27 @@ public class NewsService {
   }
 
   public Map<String, Object> detail(UUID id, Accounts.User user, boolean latest) {
+    return detail(id, user, latest, null);
+  }
+
+  public Map<String, Object> detail(
+    UUID id,
+    Accounts.User user,
+    boolean latest,
+    UUID requestedRevision
+  ) {
     Map<String, Object> news = newsRow(id);
     boolean privileged =
       user != null && (user.id().equals(news.get("author_id")) || moderator(news, user));
     if (latest && !privileged) throw ApiException.missing();
     UUID revision = (UUID) news.get(latest ? "latest_revision_id" : "published_revision_id");
+    if (requestedRevision != null) {
+      if (
+        !requestedRevision.equals(news.get("published_revision_id")) &&
+        !requestedRevision.equals(news.get("main_revision_id"))
+      ) throw ApiException.missing();
+      revision = requestedRevision;
+    }
     if (revision == null) {
       if (!privileged) throw ApiException.missing();
       revision = (UUID) news.get("latest_revision_id");
@@ -407,6 +458,10 @@ public class NewsService {
       "UPDATE news_revisions SET status='withdrawn' WHERE id=? AND status='pending'",
       row.get("latest_revision_id")
     );
+    db.update(
+      "UPDATE news_revisions SET main_status='withdrawn' WHERE id=? AND main_status IN ('waiting','pending')",
+      row.get("latest_revision_id")
+    );
   }
 
   private void saveRevision(UUID id, Input input, String text, List<UUID> ids) {
@@ -496,10 +551,12 @@ public class NewsService {
     return db
       .queryForList(
         SELECT.formatted("n.latest_revision_id") +
-          " WHERE NOT n.deleted AND r.status='pending' ORDER BY r.submitted_at"
+          " WHERE NOT n.deleted AND (r.status='pending' OR (r.status='published' AND r.main_status='pending')) ORDER BY r.submitted_at"
       )
       .stream()
-      .filter(row -> moderator(row, user))
+      .filter(
+        row -> moderator(row, user) && (accounts.admin(user) || "pending".equals(row.get("status")))
+      )
       .map(row -> view(row, user))
       .toList();
   }
@@ -544,8 +601,28 @@ public class NewsService {
       revision,
       newsId
     );
+    boolean ordinary = row.get("community_id") != null && !Boolean.TRUE.equals(row.get("official"));
+    db.update(
+      "UPDATE news_revisions SET main_status=? WHERE id=?",
+      approve ? (ordinary ? "pending" : "published") : "waiting",
+      revision
+    );
+    if (approve && !ordinary) {
+      db.update(
+        "UPDATE news SET main_revision_id=?,main_published_at=coalesce(main_published_at,now()) WHERE id=?",
+        revision,
+        newsId
+      );
+      db.update(
+        "UPDATE news_revisions SET main_reviewer_id=?,main_reviewed_at=now() WHERE id=?",
+        user.id(),
+        revision
+      );
+    }
     String message = approve
-      ? "Ваша новость одобрена и опубликована"
+      ? ordinary
+        ? "Новость опубликована в паблике и подписках. Общая лента ожидает проверки администратора."
+        : "Ваша новость одобрена и опубликована в общей ленте"
       : "Новость отклонена: " + reason.trim();
     db.update(
       "INSERT INTO notifications(id,user_id,message,news_id) VALUES(?,?,?,?)",
@@ -559,6 +636,63 @@ public class NewsService {
       UUID.randomUUID(),
       user.id(),
       approve ? "approve" : "reject",
+      revision,
+      approve ? "" : reason.trim()
+    );
+  }
+
+  @Transactional
+  public void decideMain(UUID revision, Accounts.User user, boolean approve, String reason) {
+    if (!accounts.admin(user)) throw ApiException.forbidden();
+    UUID id = db
+      .queryForList("SELECT news_id FROM news_revisions WHERE id=?", UUID.class, revision)
+      .stream()
+      .findFirst()
+      .orElseThrow(ApiException::missing);
+    lockNewsAndCommunity(id);
+    Map<String, Object> row = newsRow(id);
+    Map<String, Object> request = db.queryForMap(
+      "SELECT * FROM news_revisions WHERE id=? FOR UPDATE",
+      revision
+    );
+    if (
+      !revision.equals(row.get("latest_revision_id")) ||
+      !"published".equals(request.get("status")) ||
+      !"pending".equals(request.get("main_status"))
+    ) throw new ApiException(
+      org.springframework.http.HttpStatus.CONFLICT,
+      "Версия уже рассмотрена, заменена или не одобрена в паблике"
+    );
+    if (
+      !approve && (reason == null || reason.trim().length() < 5 || reason.length() > 2000)
+    ) throw ApiException.bad("Укажите причину отклонения: 5–2000 символов");
+    db.update(
+      "UPDATE news_revisions SET main_status=?,main_reviewer_id=?,main_reviewed_at=now(),main_rejection_reason=? WHERE id=?",
+      approve ? "published" : "rejected",
+      user.id(),
+      approve ? null : reason.trim(),
+      revision
+    );
+    if (approve) db.update(
+      "UPDATE news SET main_revision_id=?,main_published_at=coalesce(main_published_at,now()) WHERE id=?",
+      revision,
+      id
+    );
+    String message = approve
+      ? "Новость одобрена для общей ленты"
+      : "Общая лента: " + reason.trim() + ". Публикация в паблике сохранена.";
+    db.update(
+      "INSERT INTO notifications(id,user_id,message,news_id) VALUES(?,?,?,?)",
+      UUID.randomUUID(),
+      row.get("author_id"),
+      message.substring(0, Math.min(500, message.length())),
+      id
+    );
+    db.update(
+      "INSERT INTO audit_log(id,actor_id,action,target_id,detail) VALUES(?,?,?,?,?)",
+      UUID.randomUUID(),
+      user.id(),
+      approve ? "main-approve" : "main-reject",
       revision,
       approve ? "" : reason.trim()
     );

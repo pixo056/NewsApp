@@ -49,7 +49,7 @@ public class CmsService {
   private Spec spec(String resource) {
     return switch (resource) {
       case "news" -> new Spec(
-        "n.*,r.id AS revision_id,r.title,r.body,r.category,r.source_url,r.status,r.rejection_reason,r.submitted_at,u.display_name AS author,c.official,c.owner_id",
+        "n.*,r.id AS revision_id,r.title,r.body,r.category,r.source_url,r.status,r.rejection_reason,r.submitted_at,r.main_status,r.main_rejection_reason,u.display_name AS author,c.official,c.owner_id",
         "FROM news n JOIN news_revisions r ON r.id=n.latest_revision_id JOIN app_users u ON u.id=n.author_id LEFT JOIN communities c ON c.id=n.community_id",
         "n.id",
         Map.of(
@@ -174,8 +174,11 @@ public class CmsService {
       where.append(" AND (");
       for (int index = 0; index < spec.searches().size(); index++) {
         if (index > 0) where.append(" OR ");
-        where.append(spec.searches().get(index)).append(" ILIKE ?");
-        args.add("%" + query.q() + "%");
+        where
+          .append("strpos(news_search(")
+          .append(spec.searches().get(index))
+          .append("),news_search(?))>0");
+        args.add(query.q());
       }
       where.append(")");
     }
@@ -184,6 +187,16 @@ public class CmsService {
     switch (resource) {
       case "news" -> {
         if (status.equals("hidden")) where.append(" AND n.deleted");
+        else if (status.equals("main-pending")) where.append(
+          accounts.admin(user)
+            ? " AND NOT n.deleted AND r.status='published' AND r.main_status='pending'"
+            : " AND FALSE"
+        );
+        else if (status.equals("pending")) where.append(
+          accounts.admin(user)
+            ? " AND NOT n.deleted AND (r.status='pending' OR (r.status='published' AND r.main_status='pending'))"
+            : " AND NOT n.deleted AND r.status='pending'"
+        );
         else {
           if (
             !Set.of("pending", "published", "rejected", "withdrawn").contains(status)
@@ -351,7 +364,9 @@ public class CmsService {
       db.queryForObject(
         "SELECT count(*) FROM news n JOIN news_revisions r ON r.id=n.latest_revision_id LEFT JOIN communities c ON c.id=n.community_id" +
           where +
-          " AND NOT n.deleted AND r.status='pending'",
+          (accounts.admin(user)
+            ? " AND NOT n.deleted AND (r.status='pending' OR (r.status='published' AND r.main_status='pending'))"
+            : " AND NOT n.deleted AND r.status='pending'"),
         Long.class,
         args.toArray()
       ),

@@ -38,6 +38,7 @@ import {
 
 const statuses = [
   { id: 'pending', name: 'На проверке' },
+  { id: 'main-pending', name: 'Проверка для общей ленты (администратор)' },
   { id: 'published', name: 'Опубликованы' },
   { id: 'rejected', name: 'Отклонены' },
   { id: 'hidden', name: 'Скрыты' },
@@ -112,16 +113,33 @@ export function NewsList() {
 
 function ModerationActions() {
   const record = useRecordContext<CmsNews>();
-  if (!record?.canModerate || record.deleted || record.status !== 'pending') return null;
+  if (
+    !record?.canModerate ||
+    record.deleted ||
+    (record.status !== 'pending' && !record.canReviewMain)
+  )
+    return null;
+  const main = !!record.canReviewMain;
+  const stage = main ? 'main/' : '';
   return (
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ my: 2 }}>
       <ConfirmAction
-        label="Одобрить"
+        label={
+          main
+            ? 'Одобрить для общей ленты'
+            : record.ordinaryCommunity
+              ? 'Одобрить в паблике'
+              : 'Одобрить'
+        }
         title="Опубликовать эту версию?"
         color="success"
         icon={<Check size={17} />}
-        description="Новость появится в ленте. Если это правки, читатели увидят обновлённую версию."
-        request={() => json(`/admin/revisions/${record.revisionId}/approve`, {})}
+        description={
+          main
+            ? 'Эта версия появится в общей ленте. Публикация в паблике уже одобрена.'
+            : 'Версия будет опубликована после проверки. В обычном паблике общая лента требует отдельного одобрения администратора.'
+        }
+        request={() => json(`/admin/revisions/${record.revisionId}/${stage}approve`, {})}
         success="Новость одобрена"
       />
       <ConfirmAction
@@ -129,14 +147,20 @@ function ModerationActions() {
         title="Объясните причину отклонения"
         color="error"
         icon={<X size={17} />}
-        description="Автор увидит причину и сможет исправить материал. Ранее одобренная версия останется в ленте."
+        description={
+          main
+            ? 'Отказ касается только общей ленты. Новость останется в паблике и подписках, прежняя одобренная версия общей ленты также сохранится.'
+            : 'Автор увидит причину и сможет исправить материал. Ранее одобренная версия останется опубликованной.'
+        }
         reason={{
           label: 'Причина',
           min: 5,
           max: 2000,
           helper: 'От 5 до 2 000 символов. Подскажите автору, что исправить.',
         }}
-        request={(reason) => json(`/admin/revisions/${record.revisionId}/reject`, { reason })}
+        request={(reason) =>
+          json(`/admin/revisions/${record.revisionId}/${stage}reject`, { reason })
+        }
         success="Заявка отклонена, автор уведомлён"
       />
     </Stack>
@@ -207,6 +231,11 @@ export function NewsShow() {
           <NewsMedia />
           <SourceLink />
           <TextField source="rejectionReason" label="Причина отклонения" emptyText="—" />
+          <TextField
+            source="mainRejectionReason"
+            label="Причина отказа в общей ленте"
+            emptyText="—"
+          />
           <DateField
             source="submittedAt"
             label="Отправлена на проверку"

@@ -3,6 +3,17 @@ import test from 'node:test';
 import { validateNewsDraft, validateNewsMedia } from '../src/domain/news-validation.ts';
 import { api, ApiError, csrf, upload } from '../src/api/client.ts';
 import { authReturnTo } from '../src/domain/auth-return.ts';
+import { matchingCommunities, normalizeNewsSearch } from '../src/domain/news-search.ts';
+
+test('community search folds Russian case, ё and whitespace, ranks exact names, and treats wildcards literally', () => {
+  assert.equal(normalizeNewsSearch('  ЁЖИК\u00a0  В\nКампусе '), 'ежик в кампусе');
+  const items = [
+    { name: 'Большой клуб ёжик', description: '' },
+    { name: 'Клуб Ёжик', description: '' },
+  ];
+  assert.equal(matchingCommunities(items, '  КЛУБ\tЕЖИК ')[0].name, 'Клуб Ёжик');
+  assert.equal(matchingCommunities(items, '%_').length, 0);
+});
 
 test('sign-in returns to the selected community submission without allowing external redirects', () => {
   const id = 'a3e14066-c7ea-4be1-a0dd-52ad72c5ee11';

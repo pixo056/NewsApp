@@ -9,11 +9,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [followed, setFollowed] = useState<string[]>([]);
   const [theme, setThemeState] = useState<Theme>(() => {
     const value = localStorage.getItem('newsapp-theme');
-    return value === 'dark' || value === 'lavender' ? value : 'light';
+    return value === 'dark' || value === 'light' ? value : 'system';
   });
+  const [deviceDark, setDeviceDark] = useState(
+    () => matchMedia('(prefers-color-scheme: dark)').matches,
+  );
+  const resolvedTheme = theme === 'system' ? (deviceDark ? 'dark' : 'light') : theme;
+  useEffect(() => {
+    const media = matchMedia('(prefers-color-scheme: dark)');
+    const update = () => setDeviceDark(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    document.documentElement.style.colorScheme = resolvedTheme;
+    document.documentElement.style.backgroundColor =
+      resolvedTheme === 'dark' ? '#17151e' : '#f7f8fa';
+  }, [resolvedTheme]);
   const [toast, notify] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [communities, setCommunities] = useState<Community[]>([]);
+  const [recommended, setRecommended] = useState<Community[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [localMailbox, setLocalMailbox] = useState(false);
@@ -26,11 +43,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLocalMailbox(
         session.localMailbox && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname),
       );
-      const [groups, latest] = await Promise.all([
+      const [groups, latest, suggestions] = await Promise.all([
         api<Community[]>('/communities'),
         api<Page<Post>>('/news?limit=3'),
+        api<Community[]>('/communities/recommended'),
       ]);
       setCommunities(groups);
+      setRecommended(suggestions);
       setPosts(latest.items);
       if (session.user) {
         const [prefs, notices] = await Promise.all([
@@ -96,6 +115,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         saved,
         followed,
         theme,
+        resolvedTheme,
+        recommended,
         setTheme,
         toast,
         notify,
@@ -112,7 +133,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
       }}
     >
-      <div data-theme={theme}>{children}</div>
+      <div data-theme={resolvedTheme}>{children}</div>
     </Context.Provider>
   );
 }

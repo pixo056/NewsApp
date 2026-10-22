@@ -12,7 +12,6 @@ import {
   Mail,
   Monitor,
   Moon,
-  Palette,
   PenLine,
   Plus,
   ShieldCheck,
@@ -477,6 +476,16 @@ export function MyPostsPage() {
                 </span>
               )}
               <h2>{p.title}</h2>
+              {p.mainStatus === 'pending' && (
+                <p className="field-note">
+                  Опубликована в паблике · общая лента на проверке у администратора
+                </p>
+              )}
+              {p.mainStatus === 'rejected' && (
+                <p className="rejection-reason">
+                  Общая лента: {p.mainRejectionReason}. Публикация в паблике сохранена.
+                </p>
+              )}
               <p>{p.text}</p>
               {p.rejectionReason && (
                 <div className="rejection-reason">
@@ -698,7 +707,7 @@ export function SettingsPage() {
           {[
             { id: 'light' as const, label: 'Светлая', icon: Sun },
             { id: 'dark' as const, label: 'Тёмная', icon: Moon },
-            { id: 'lavender' as const, label: 'Лавандовая', icon: Palette },
+            { id: 'system' as const, label: 'Как на устройстве', icon: Monitor },
           ].map(({ id, label, icon: Icon }) => (
             <button
               className={`theme-option ${id} ${theme === id ? 'selected' : ''}`}
@@ -1135,9 +1144,12 @@ export function AdminPage() {
     if (!selected) return;
     setBusy(true);
     try {
-      await json(`/admin/revisions/${selected.revisionId}/${approve ? 'approve' : 'reject'}`, {
-        reason,
-      });
+      await json(
+        `/admin/revisions/${selected.revisionId}/${selected.canReviewMain ? 'main/' : ''}${approve ? 'approve' : 'reject'}`,
+        {
+          reason,
+        },
+      );
       queue.reload();
       audit.reload();
       setRejecting(false);

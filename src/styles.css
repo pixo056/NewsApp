@@ -87,6 +87,7 @@ a svg {
   color: #2a1468;
 }
 [data-theme] {
+  color-scheme: light;
   --primary: #4d19cc;
   --primary-hover: #3b11a6;
   --primary-soft: #eee9fc;
@@ -116,13 +117,51 @@ a svg {
   --shadow: none;
   color-scheme: dark;
 }
-[data-theme='lavender'] {
-  --primary: #4d19cc;
-  --primary-soft: #e6dcfc;
-  --bg: #f1ecfb;
-  --panel: #fcfaff;
-  --line: #e6dff1;
-  --input: #f2edf9;
+[data-theme='dark'] .hero-card,
+[data-theme='dark'] .pitch-card {
+  background: var(--primary-soft);
+}
+[data-theme='dark'] .hero-copy,
+[data-theme='dark'] .pitch-card {
+  color: var(--ink);
+}
+[data-theme='dark'] .hero-copy p,
+[data-theme='dark'] .pitch-card p {
+  color: var(--subtle);
+}
+[data-theme='dark'] .hero-copy .eyebrow,
+[data-theme='dark'] .hero-copy > a,
+[data-theme='dark'] .pitch-card a {
+  color: var(--primary);
+}
+[data-theme='dark'] .pitch-icon,
+[data-theme='dark'] .profile-avatar,
+[data-theme='dark'] .event-date {
+  background: var(--input);
+  color: var(--primary);
+}
+[data-theme='dark'] .event-date.peach,
+[data-theme='dark'] .status.pending {
+  background: #473820;
+  color: #f3cf85;
+}
+[data-theme='dark'] .status.published {
+  background: #203c31;
+  color: #94dfb8;
+}
+[data-theme='dark'] .danger-button,
+[data-theme='dark'] .form-error,
+[data-theme='dark'] .status.rejected {
+  background: #492a35;
+  color: #ffb1c4;
+}
+[data-theme='dark'] .rejection-reason {
+  color: #ffb1c4;
+}
+[data-theme='dark'] .image-tag {
+  background: var(--panel);
+  color: var(--ink);
+  border-color: var(--line);
 }
 .muted {
   color: var(--subtle);
@@ -2000,14 +2039,11 @@ main:focus {
 .theme-option.dark .theme-preview > span > i:first-child {
   background: #593c84;
 }
-.theme-option.lavender .theme-preview {
-  background: #eadff8;
+.theme-option.system .theme-preview {
+  background: linear-gradient(90deg, #f4f5f7 50%, #1b1725 50%);
 }
-.theme-option.lavender .theme-preview > i {
-  background: #d2bfec;
-}
-.theme-option.lavender .theme-preview > span > i {
-  background: #fbf7ff;
+.theme-option.system .theme-preview > span > i {
+  background: linear-gradient(90deg, #fff 35%, #3f3450 35%);
 }
 .theme-option > span:last-child {
   display: flex;

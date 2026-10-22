@@ -13,6 +13,7 @@ import {
   Search,
 } from 'lucide-react';
 import { categories } from '../data/categories';
+import { matchingCommunities } from '../domain/news-search';
 import type { Category, Page, Post } from '../domain/types';
 import { useApp } from '../app/context';
 import { api, json } from '../api/client';
@@ -263,10 +264,8 @@ export function CommunitiesPage() {
   const { communities, followed, toggleFollow, loading } = useApp();
   const [query, setQuery] = useState('');
   const [onlyFollowed, setOnlyFollowed] = useState(false);
-  const filtered = communities.filter(
-    (c) =>
-      c.name.toLowerCase().includes(query.toLowerCase()) &&
-      (!onlyFollowed || followed.includes(c.id)),
+  const filtered = matchingCommunities(communities, query).filter(
+    (c) => !onlyFollowed || followed.includes(c.id),
   );
   return (
     <>
@@ -573,6 +572,8 @@ function NotFound() {
 }
 export function ArticlePage() {
   const { id } = useParams();
+  const [params] = useSearchParams();
+  const revision = params.get('revision');
   const { communities, saved, toggleSave } = useApp();
   const [post, setPost] = useState<Post>();
   const [error, setError] = useState('');
@@ -580,7 +581,7 @@ export function ArticlePage() {
     let active = true;
     setPost(undefined);
     setError('');
-    api<Post>(`/news/${id}`)
+    api<Post>(`/news/${id}${revision ? `?revision=${encodeURIComponent(revision)}` : ''}`)
       .then((p) => {
         if (active) {
           setPost(p);
@@ -601,7 +602,7 @@ export function ArticlePage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, revision]);
   if (error) return <ErrorState message={error} />;
   if (!post) return <Loading />;
   const community = communities.find((c) => c.id === post.communityId);
@@ -691,7 +692,7 @@ export function SearchPage() {
   const [value, setValue] = useState(query);
   const { communities } = useApp();
   useEffect(() => setValue(query), [query]);
-  const found = communities.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
+  const found = matchingCommunities(communities, query);
   return (
     <>
       <PageHeading title="Поиск" subtitle="Найдите историю, событие или своё сообщество." />

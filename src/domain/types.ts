@@ -47,6 +47,7 @@ export interface Post {
   text: string;
   category: Category;
   communityId?: string;
+  ordinaryCommunity?: boolean;
   author: string;
   authorId: string;
   publishedAt: string;
@@ -61,6 +62,9 @@ export interface Post {
   reactionCounts?: ReactionCounts;
   myReaction?: ReactionKind | null;
   status: PostStatus;
+  mainStatus?: 'waiting' | 'pending' | 'published' | 'rejected' | 'withdrawn';
+  mainRejectionReason?: string;
+  canReviewMain?: boolean;
   rejectionReason?: string;
   source: string;
   canEdit: boolean;

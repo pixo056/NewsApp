@@ -1,10 +1,12 @@
 import { createContext, useContext } from 'react';
 import type { Community, Notification, Post, User } from '../domain/types';
-export type Theme = 'light' | 'dark' | 'lavender';
+export type Theme = 'light' | 'dark' | 'system';
 export interface State {
   saved: string[];
   followed: string[];
   theme: Theme;
+  resolvedTheme: 'light' | 'dark';
+  recommended: Community[];
   toast: string;
   user: User | null;
   communities: Community[];

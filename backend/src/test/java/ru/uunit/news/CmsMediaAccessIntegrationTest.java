@@ -140,6 +140,39 @@ class CmsMediaAccessIntegrationTest {
   }
 
   @Test
+  void bothApprovedFeedsKeepTheirMediaUntilTheirOwnRevisionIsReplaced() throws Exception {
+    Accounts.User author = author();
+    UUID group = group();
+    UUID firstPhoto = photo(author),
+      secondPhoto = photo(author),
+      draftPhoto = photo(author);
+    UUID id = create(author, group, List.of(firstPhoto), true);
+    UUID first = db.queryForObject(
+      "SELECT latest_revision_id FROM news WHERE id=?",
+      UUID.class,
+      id
+    );
+    news.decideMain(first, admin(), true, null);
+    news.submit(author, input(group, List.of(secondPhoto)), id);
+    UUID second = db.queryForObject(
+      "SELECT latest_revision_id FROM news WHERE id=?",
+      UUID.class,
+      id
+    );
+    denied(secondPhoto, null);
+    news.decide(second, owner(), true, null);
+    mvc.perform(get("/api/media/" + firstPhoto)).andExpect(status().isOk());
+    mvc.perform(get("/api/media/" + secondPhoto)).andExpect(status().isOk());
+    news.decideMain(second, admin(), true, null);
+    denied(firstPhoto, null);
+    news.submit(author, input(group, List.of(draftPhoto)), id);
+    denied(draftPhoto, null);
+    mvc.perform(get("/api/media/" + secondPhoto)).andExpect(status().isOk());
+    cms.visibility(id, admin(), true);
+    denied(secondPhoto, null);
+  }
+
+  @Test
   void ordinaryOwnerCannotPreviewAnotherAuthorsHiddenAttachments() throws Exception {
     Accounts.User author = author();
     Accounts.User unrelated = author();

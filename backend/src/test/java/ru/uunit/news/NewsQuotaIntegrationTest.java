@@ -101,7 +101,7 @@ class NewsQuotaIntegrationTest {
       worker.shutdownNow();
       worker.awaitTermination(10, TimeUnit.SECONDS);
       db.update(
-        "UPDATE news SET latest_revision_id=NULL,published_revision_id=NULL WHERE community_id=?",
+        "UPDATE news SET latest_revision_id=NULL,published_revision_id=NULL,main_revision_id=NULL WHERE community_id=?",
         community
       );
       db.update(

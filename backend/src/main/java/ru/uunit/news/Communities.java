@@ -33,9 +33,40 @@ public class Communities {
   }
 
   public List<Map<String, Object>> list(Accounts.User user) {
+    return list(user, "");
+  }
+
+  public List<Map<String, Object>> list(Accounts.User user, String query) {
+    if (query != null && query.length() > 200) throw ApiException.bad("Слишком длинный запрос");
+    String normalized = db.queryForObject("SELECT news_search(?)", String.class, query);
     return db
       .queryForList(
-        "SELECT c.*, (SELECT count(*) FROM subscriptions s WHERE s.community_id=c.id) AS members FROM communities c ORDER BY official DESC,created_at"
+        "SELECT c.*, (SELECT count(*) FROM subscriptions s WHERE s.community_id=c.id) AS members FROM communities c WHERE ?='' OR strpos(news_search(c.name),?)>0 OR strpos(news_search(c.description),?)>0 ORDER BY (news_search(c.name)=?) DESC,official DESC,created_at,c.id",
+        normalized,
+        normalized,
+        normalized,
+        normalized
+      )
+      .stream()
+      .map(row -> view(row, user))
+      .toList();
+  }
+
+  public List<Map<String, Object>> recommendations(Accounts.User user) {
+    // Active within 30 days, ranked by recent publication count. Daily rotation breaks ties.
+    return db
+      .queryForList(
+        """
+        SELECT c.*,(SELECT count(*) FROM subscriptions s WHERE s.community_id=c.id) AS members
+        FROM communities c JOIN LATERAL (
+          SELECT count(*) AS recent FROM news n
+          WHERE n.community_id=c.id AND NOT n.deleted AND n.published_revision_id IS NOT NULL
+            AND n.published_at>=now()-interval '30 days'
+        ) activity ON activity.recent>0
+        WHERE NOT EXISTS(SELECT 1 FROM subscriptions s WHERE s.community_id=c.id AND s.user_id=?::uuid)
+        ORDER BY activity.recent DESC,md5(c.id::text || (now() AT TIME ZONE 'Asia/Yekaterinburg')::date::text),c.id LIMIT 3
+        """,
+        user == null ? null : user.id()
       )
       .stream()
       .map(row -> view(row, user))

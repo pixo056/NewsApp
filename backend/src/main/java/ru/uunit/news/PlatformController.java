@@ -67,8 +67,12 @@ public class PlatformController {
   }
 
   @GetMapping("/news/{id}")
-  Object detail(@PathVariable UUID id, Authentication auth) {
-    return news.detail(id, accounts.current(auth), false);
+  Object detail(
+    @PathVariable UUID id,
+    @RequestParam(required = false) UUID revision,
+    Authentication auth
+  ) {
+    return news.detail(id, accounts.current(auth), false, revision);
   }
 
   @PostMapping("/news/{id}/view")
@@ -110,8 +114,23 @@ public class PlatformController {
   }
 
   @GetMapping("/communities")
-  Object communities(Authentication auth) {
-    return communities.list(accounts.current(auth));
+  Object communities(Authentication auth, @RequestParam(required = false) String q) {
+    return communities.list(accounts.current(auth), q);
+  }
+
+  @GetMapping("/communities/recommended")
+  Object recommended(Authentication auth) {
+    return communities.recommendations(accounts.current(auth));
+  }
+
+  @PostMapping("/admin/revisions/{id}/main/approve")
+  void approveMain(@PathVariable UUID id, Authentication auth) {
+    news.decideMain(id, accounts.require(auth), true, null);
+  }
+
+  @PostMapping("/admin/revisions/{id}/main/reject")
+  void rejectMain(@PathVariable UUID id, Authentication auth, @RequestBody Reason input) {
+    news.decideMain(id, accounts.require(auth), false, input.reason());
   }
 
   @PostMapping("/communities")

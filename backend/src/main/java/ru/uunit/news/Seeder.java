@@ -60,7 +60,7 @@ public class Seeder implements CommandLineRunner {
     community(
       club,
       "IT-сообщество",
-      "Собираем команды, обсуждаем идеи и делимся опытом. Новости перед публикацией проверяет администрация платформы.",
+      "Собираем команды, обсуждаем идеи и делимся опытом. Новости проверяет создатель, для общей ленты — администрация платформы.",
       "IT",
       "lime",
       "Технологии",
@@ -225,11 +225,18 @@ public class Seeder implements CommandLineRunner {
       media
     );
     db.update(
-      "UPDATE news SET latest_revision_id=?,published_revision_id=?,published_at=? WHERE id=?",
+      "UPDATE news SET latest_revision_id=?,published_revision_id=?,published_at=?,main_revision_id=?,main_published_at=? WHERE id=?",
       revision,
       published ? revision : null,
       published ? new java.sql.Timestamp(System.currentTimeMillis()) : null,
+      published ? revision : null,
+      published ? new java.sql.Timestamp(System.currentTimeMillis()) : null,
       id
+    );
+    db.update(
+      "UPDATE news_revisions SET main_status=? WHERE id=?",
+      published ? "published" : "waiting",
+      revision
     );
   }
 }

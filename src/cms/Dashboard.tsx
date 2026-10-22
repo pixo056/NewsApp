@@ -8,7 +8,7 @@ import { useApp } from '../app/context';
 import type { CmsSummary } from './contracts';
 
 export function CmsDashboard() {
-  const { user } = useApp();
+  const { user, resolvedTheme } = useApp();
   const admin = user?.role === 'ADMIN';
   const createPath = useCreatePath();
   const [summary, setSummary] = useState<CmsSummary>();
@@ -197,8 +197,8 @@ export function CmsDashboard() {
                   borderRadius: 2,
                   display: 'grid',
                   placeItems: 'center',
-                  bgcolor: background,
-                  color,
+                  bgcolor: resolvedTheme === 'dark' ? 'action.hover' : background,
+                  color: resolvedTheme === 'dark' ? 'primary.main' : color,
                   mb: 2,
                 }}
               >
@@ -229,8 +229,8 @@ export function CmsDashboard() {
                       width: 30,
                       height: 30,
                       borderRadius: '50%',
-                      bgcolor: '#f2ebff',
-                      color: '#6d28d9',
+                      bgcolor: 'action.hover',
+                      color: 'primary.main',
                       fontWeight: 800,
                       display: 'grid',
                       placeItems: 'center',

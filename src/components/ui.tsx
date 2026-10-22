@@ -133,7 +133,7 @@ export function PostMedia({ post }: { post: Post }) {
         </video>
       )}
       {!post.videoUrl && post.image && (
-        <Link to={`/news/${post.id}`} className="post-image-link">
+        <Link to={`/news/${post.id}?revision=${post.revisionId}`} className="post-image-link">
           <img className="post-image" src={post.image} alt={post.title} loading="lazy" />
           <span className="image-tag">
             Открыть новость <ArrowUpRight size={15} />
@@ -161,7 +161,7 @@ export function PostCard({ post }: { post: Post }) {
             </span>
           </Link>
         ) : (
-          <Link to={`/news/${post.id}`} className="author-link">
+          <Link to={`/news/${post.id}?revision=${post.revisionId}`} className="author-link">
             <span className="avatar lavender">{post.author.slice(0, 1)}</span>
             <span>
               <span className="author-name">{post.author}</span>
@@ -171,7 +171,7 @@ export function PostCard({ post }: { post: Post }) {
         )}
         <span className="category-label">{post.category}</span>
       </header>
-      <Link className="post-body" to={`/news/${post.id}`}>
+      <Link className="post-body" to={`/news/${post.id}?revision=${post.revisionId}`}>
         <h2>{post.title}</h2>
         {post.text && <p>{post.text}</p>}
       </Link>

@@ -111,6 +111,18 @@ assert.equal(
 );
 assert.equal((await owner.request(`/cms/news/${created.id}`)).status, 200);
 assert.equal((await guest.ok(`/news/${created.id}`)).title, input.title);
+assert.equal((await guest.ok(`/news?q=${nonce}`)).items.length, 0);
+assert.equal(
+  (
+    await owner.request(`/admin/revisions/${item.revisionId}/main/approve`, {
+      method: 'POST',
+      body: {},
+    })
+  ).status,
+  403,
+);
+await admin.ok(`/admin/revisions/${item.revisionId}/main/approve`, { method: 'POST', body: {} });
+assert.equal((await guest.ok(`/news?q=${nonce}`)).items.length, 1);
 const firstView = await guest.ok(`/news/${created.id}/view`, { method: 'POST', body: {} });
 assert.deepEqual(firstView, { views: 1, counted: true });
 assert.deepEqual(await guest.ok(`/news/${created.id}/view`, { method: 'POST', body: {} }), {
@@ -160,6 +172,7 @@ await student.ok(`/news/${created.id}/revisions`, { method: 'POST', body: edited
 item = (await admin.ok('/admin/revisions')).find((p) => p.id === created.id);
 await admin.ok(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} });
 assert.equal((await guest.ok(`/news/${created.id}`)).title, edited.title);
+await admin.ok(`/admin/revisions/${item.revisionId}/main/approve`, { method: 'POST', body: {} });
 assert.equal((await guest.ok(`/news?q=${nonce}`)).items.length, 1);
 assert.ok((await student.ok('/me/notifications')).length >= 3);
 await student.ok(`/news/${created.id}/reports`, {
