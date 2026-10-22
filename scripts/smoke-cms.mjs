@@ -56,8 +56,11 @@ assert.equal((await owner.login('club.owner', config.ownerPassword)).status, 200
 assert.equal((await guest.request('/cms/news')).status, 401);
 assert.equal((await owner.request('/cms/users')).status, 403);
 assert.equal((await owner.request('/cms/audit')).status, 403);
-assert.equal((await owner.request('/cms/reports')).status, 403);
-assert.equal((await owner.ok('/cms/summary')).reports, 0);
+assert.equal((await owner.request('/cms/reports')).status, 200);
+assert.equal(
+  (await owner.ok('/cms/summary')).reports,
+  (await owner.ok('/cms/reports?status=pending')).total,
+);
 await guest.ok('/auth/register', { username, email, name: 'Проверка CMS', password });
 const letter = (await guest.ok('/dev/mailbox')).find((mail) => mail.recipient === email);
 await guest.ok('/auth/verify-email', {

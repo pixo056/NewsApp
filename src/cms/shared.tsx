@@ -206,7 +206,7 @@ export function ConfirmAction({
 
 export function VisibilityAction({ newsId, hidden = false }: { newsId: string; hidden?: boolean }) {
   const { user } = useApp();
-  if (user?.role !== 'ADMIN') return null;
+  if (!user?.canModerate || (hidden && user.role !== 'ADMIN')) return null;
   return (
     <ConfirmAction
       label={hidden ? 'Вернуть публикацию' : 'Скрыть новость'}

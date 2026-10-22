@@ -330,10 +330,11 @@ public class MediaService {
       accounts.admin(user) ||
       db.queryForObject(
         "SELECT count(*) FROM revision_media rm JOIN news_revisions r ON r.id=rm.revision_id " +
-          "JOIN news n ON n.id=r.news_id " +
-          "WHERE rm.media_id=? AND n.author_id=?",
+          "JOIN news n ON n.id=r.news_id LEFT JOIN communities c ON c.id=n.community_id " +
+          "WHERE rm.media_id=? AND (n.author_id=? OR (c.owner_id=? AND NOT c.official AND NOT n.deleted))",
         Integer.class,
         id,
+        user.id(),
         user.id()
       ) > 0;
     if (!allowed) throw ApiException.missing();

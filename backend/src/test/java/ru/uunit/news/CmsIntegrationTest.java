@@ -147,7 +147,7 @@ class CmsIntegrationTest {
     Set<String> own = new HashSet<>();
     for (int index = 0; index < 3; index++) own.add(
       create(
-        owner(),
+        index == 0 ? outsider() : owner(),
         club(),
         marker + " Новости своего паблика " + index,
         true,
@@ -181,7 +181,7 @@ class CmsIntegrationTest {
   }
 
   @Test
-  void ownersEditTheirOwnNewsButNeverApproveOrRestoreAdministrativeHiding() throws Exception {
+  void ownersEditAndApproveTheirNewsButCannotRestoreAdministrativeHiding() throws Exception {
     UUID id = create(
       owner(),
       club(),
@@ -193,7 +193,7 @@ class CmsIntegrationTest {
       .perform(get("/api/cms/news/" + id).with(as(owner())))
       .andExpect(status().isOk())
       .andExpect(jsonPath("canEdit").value(true))
-      .andExpect(jsonPath("canModerate").value(false));
+      .andExpect(jsonPath("canModerate").value(true));
     mvc
       .perform(
         patch("/api/cms/news/" + id)
@@ -214,9 +214,8 @@ class CmsIntegrationTest {
           .with(as(owner()))
           .with(csrf())
       )
-      .andExpect(status().isForbidden());
-    mvc.perform(get("/api/news/" + id)).andExpect(status().isNotFound());
-    news.decide(latest(id), admin(), true, null);
+      .andExpect(status().isOk());
+    mvc.perform(get("/api/news/" + id)).andExpect(status().isOk());
     cms.editNews(id, owner(), input("Правки владельца после одобрения", club(), List.of()));
     mvc
       .perform(get("/api/news/" + id))
@@ -236,11 +235,15 @@ class CmsIntegrationTest {
   }
 
   @Test
-  void ownersCannotReadOrEditAnotherAuthorsPendingOrdinaryCommunityNews() throws Exception {
+  void ownersCanReviewButCannotRewriteAnotherAuthorsPendingNews() throws Exception {
     UUID id = create(outsider(), club(), "Чужая заявка внутри паблика владельца", false, List.of());
-    mvc.perform(get("/api/cms/news/" + id).with(as(owner()))).andExpect(status().isNotFound());
-    mvc.perform(get("/api/me/news/" + id).with(as(owner()))).andExpect(status().isNotFound());
-    mvc.perform(get("/api/news/" + id).with(as(owner()))).andExpect(status().isNotFound());
+    mvc
+      .perform(get("/api/cms/news/" + id).with(as(owner())))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("canModerate").value(true))
+      .andExpect(jsonPath("canEdit").value(false));
+    mvc.perform(get("/api/me/news/" + id).with(as(owner()))).andExpect(status().isOk());
+    mvc.perform(get("/api/news/" + id).with(as(owner()))).andExpect(status().isOk());
     mvc
       .perform(
         patch("/api/cms/news/" + id)
@@ -258,6 +261,27 @@ class CmsIntegrationTest {
       "pending",
       db.queryForObject("SELECT status FROM news_revisions WHERE id=?", String.class, latest(id))
     );
+  }
+
+  @Test
+  void ownerRejectsOtherAuthorsRevisionsAndHidesOnlyTheirCommunityNews() throws Exception {
+    Accounts.User author = outsider();
+    UUID id = create(author, club(), "Заявка другого автора для владельца", false, List.of());
+    news.decide(latest(id), owner(), false, "Дополните проверенный источник");
+    assertEquals("rejected", cms.detail("news", id, owner()).get("status"));
+    mvc.perform(get("/api/news/" + id)).andExpect(status().isNotFound());
+    news.submit(author, input("Исправленная заявка другого автора", club(), List.of()), id);
+    news.decide(latest(id), owner(), true, null);
+    news.submit(author, input("Новая версия ожидает модерации", club(), List.of()), id);
+    news.decide(latest(id), owner(), false, "Проверьте факты перед публикацией");
+    mvc
+      .perform(get("/api/news/" + id))
+      .andExpect(jsonPath("title").value("Исправленная заявка другого автора"));
+    cms.visibility(id, owner(), true);
+    mvc.perform(get("/api/news/" + id)).andExpect(status().isNotFound());
+    assertThrows(ApiException.class, () -> cms.visibility(id, owner(), false));
+    cms.visibility(id, admin(), false);
+    mvc.perform(get("/api/news/" + id)).andExpect(status().isOk());
   }
 
   @Test
@@ -578,10 +602,10 @@ class CmsIntegrationTest {
     }
     JsonNode visible = list("reports", admin(), "CMS report marker", 1, 1);
     assertEquals(2, visible.path("total").asInt());
-    mvc.perform(get("/api/cms/reports").with(as(owner()))).andExpect(status().isForbidden());
+    assertEquals(1, list("reports", owner(), "CMS report marker", 1, 100).path("total").asInt());
     mvc
       .perform(get("/api/cms/reports/" + officialReport).with(as(owner())))
-      .andExpect(status().isForbidden());
+      .andExpect(status().isNotFound());
     mvc
       .perform(
         patch("/api/cms/reports/" + officialReport)
@@ -594,7 +618,7 @@ class CmsIntegrationTest {
     mvc
       .perform(
         patch("/api/cms/reports/" + ownReport)
-          .with(as(admin()))
+          .with(as(owner()))
           .with(csrf())
           .contentType("application/json")
           .content("{\"resolution\":\"Материал проверен, нарушения не обнаружены\"}")
@@ -722,13 +746,16 @@ class CmsIntegrationTest {
       summary.path("communities").asLong()
     );
     long pending = db.queryForObject(
-      "SELECT count(*) FROM news n JOIN news_revisions r ON r.id=n.latest_revision_id JOIN communities c ON c.id=n.community_id WHERE c.owner_id=? AND n.author_id=c.owner_id AND NOT c.official AND NOT n.deleted AND r.status='pending'",
+      "SELECT count(*) FROM news n JOIN news_revisions r ON r.id=n.latest_revision_id JOIN communities c ON c.id=n.community_id WHERE c.owner_id=? AND NOT c.official AND NOT n.deleted AND r.status='pending'",
       Long.class,
       owner().id()
     );
     assertEquals(pending, summary.path("pending").asLong());
     assertFalse(summary.has("users"));
-    assertEquals(0, summary.path("reports").asLong());
+    assertEquals(
+      list("reports", owner(), "", 1, 100).path("total").asLong(),
+      summary.path("reports").asLong()
+    );
   }
 
   @Test

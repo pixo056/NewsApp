@@ -107,10 +107,9 @@ assert.equal(
 assert.equal(
   (await owner.request(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} }))
     .status,
-  403,
+  200,
 );
-assert.equal((await owner.request(`/cms/news/${created.id}`)).status, 404);
-await admin.ok(`/admin/revisions/${item.revisionId}/approve`, { method: 'POST', body: {} });
+assert.equal((await owner.request(`/cms/news/${created.id}`)).status, 200);
 assert.equal((await guest.ok(`/news/${created.id}`)).title, input.title);
 const firstView = await guest.ok(`/news/${created.id}/view`, { method: 'POST', body: {} });
 assert.deepEqual(firstView, { views: 1, counted: true });

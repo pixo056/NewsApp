@@ -156,7 +156,7 @@ export default function CmsApp() {
         edit={CommunityEdit}
         recordRepresentation="name"
       />
-      {user?.role === 'ADMIN' && (
+      {user?.canModerate && (
         <Resource
           name="reports"
           options={{ label: 'Жалобы' }}

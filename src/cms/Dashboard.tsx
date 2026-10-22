@@ -42,14 +42,14 @@ export function CmsDashboard() {
     (status ? `?filter=${encodeURIComponent(JSON.stringify({ status }))}` : '');
   const cards = [
     {
-      label: admin ? 'На проверке' : 'Мои заявки на проверке',
+      label: 'На проверке',
       value: summary?.pending,
       path: listPath('news', 'pending'),
       icon: ClipboardCheck,
       color: '#7c3aed',
       background: '#f2ebff',
     },
-    ...(admin
+    ...(user?.canModerate
       ? [
           {
             label: 'Открытые жалобы',
@@ -62,7 +62,7 @@ export function CmsDashboard() {
         ]
       : []),
     {
-      label: admin ? 'Все публикации' : 'Мои публикации',
+      label: admin ? 'Все публикации' : 'Новости моих пабликов',
       value: summary?.news,
       path: listPath('news'),
       icon: Newspaper,
@@ -90,23 +90,11 @@ export function CmsDashboard() {
         ]
       : []),
   ];
-  const steps = admin
-    ? [
-        ['Откройте заявку', 'Во вкладке «Публикации» выберите состояние «На проверке».'],
-        ['Проверьте материал', 'Прочитайте текст, откройте источник и просмотрите вложения.'],
-        ['Примите решение', 'Одобрите новость или объясните автору, что нужно исправить.'],
-      ]
-    : [
-        ['Откройте свой паблик', 'Перейдите на его страницу в разделе «Паблики» основного сайта.'],
-        [
-          'Предложите материал',
-          'Нажмите «Предложить новость», заполните форму и отправьте её на проверку.',
-        ],
-        [
-          'Дождитесь решения',
-          'Администрация проверит новость. При отказе исправьте материал с учётом причины и отправьте ещё раз.',
-        ],
-      ];
+  const steps = [
+    ['Откройте заявку', 'Во вкладке «Публикации» выберите состояние «На проверке».'],
+    ['Проверьте материал', 'Прочитайте текст, откройте источник и просмотрите вложения.'],
+    ['Примите решение', 'Одобрите новость или объясните автору, что нужно исправить.'],
+  ];
   return (
     <Box sx={{ pb: 4 }}>
       <Title title="Обзор" />
@@ -140,7 +128,7 @@ export function CmsDashboard() {
                 mb: 1,
               }}
             >
-              {admin ? 'ПУЛЬС · УПРАВЛЕНИЕ САЙТОМ' : 'ПУЛЬС · МОИ ПУБЛИКАЦИИ И ПАБЛИКИ'}
+              {admin ? 'ПУЛЬС · УПРАВЛЕНИЕ САЙТОМ' : 'ПУЛЬС · МОДЕРАЦИЯ МОИХ ПАБЛИКОВ'}
             </Typography>
             <Typography component="h1" variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
               Здравствуйте, {user?.name}!
@@ -148,12 +136,12 @@ export function CmsDashboard() {
             <Typography sx={{ color: '#ede5ff', lineHeight: 1.7 }}>
               {admin
                 ? 'Проверяйте новости, помогайте авторам и следите за порядком на платформе. Всё необходимое — в одном кабинете.'
-                : 'Здесь собраны ваши публикации и настройки пабликов. Все новости и правки проверяет администрация платформы.'}
+                : 'Проверяйте заявки и жалобы своих обычных пабликов. Личные новости и официальные паблики проверяет администрация платформы.'}
             </Typography>
           </Box>
           <Button
             component={Link}
-            to={listPath('news', admin ? 'pending' : undefined)}
+            to={listPath('news', 'pending')}
             variant="contained"
             endIcon={<ArrowRight size={18} />}
             sx={{
@@ -164,7 +152,7 @@ export function CmsDashboard() {
               py: 1.5,
             }}
           >
-            {admin ? 'Проверить заявки' : 'Мои публикации'}
+            Проверить заявки
           </Button>
         </CardContent>
       </Card>
@@ -230,7 +218,7 @@ export function CmsDashboard() {
         <Card>
           <CardContent sx={{ p: 3 }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 800 }}>
-              {admin ? 'Как выпустить новость' : 'Как предложить новость'}
+              Как выпустить новость
             </Typography>
             <Stack spacing={2.5}>
               {steps.map(([title, text], index) => (
@@ -281,7 +269,7 @@ export function CmsDashboard() {
               >
                 Настроить паблики
               </Button>
-              {admin && (
+              {user?.canModerate && (
                 <Button
                   component={Link}
                   to={listPath('reports', 'pending')}

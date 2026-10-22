@@ -143,7 +143,7 @@ class PlatformIntegrationTest {
   }
 
   @Test
-  void onlyPlatformAdministratorsApproveOrdinaryCommunityNews() throws Exception {
+  void ordinaryOwnerApprovesTheirCommunityButCannotGrantOfficialStatus() throws Exception {
     Accounts.User stranger = outsider();
     UUID id = submit(stranger, club());
     mvc
@@ -159,21 +159,17 @@ class PlatformIntegrationTest {
           .with(user("club.owner"))
           .with(csrf())
       )
-      .andExpect(status().isForbidden());
-    mvc.perform(get("/api/news/" + id)).andExpect(status().isNotFound());
-    mvc
-      .perform(get("/api/me/news/" + id).with(user("club.owner")))
-      .andExpect(status().isNotFound());
-    mvc
-      .perform(get("/api/cms/news/" + id).with(user("club.owner")))
-      .andExpect(status().isNotFound());
+      .andExpect(status().isOk());
+    mvc.perform(get("/api/news/" + id)).andExpect(status().isOk());
+    mvc.perform(get("/api/me/news/" + id).with(user("club.owner"))).andExpect(status().isOk());
+    mvc.perform(get("/api/cms/news/" + id).with(user("club.owner"))).andExpect(status().isOk());
     mvc
       .perform(
         post("/api/admin/revisions/" + pending(id) + "/approve")
           .with(user("uunit.admin"))
           .with(csrf())
       )
-      .andExpect(status().isOk());
+      .andExpect(status().isConflict());
     mvc
       .perform(get("/api/news/" + id))
       .andExpect(status().isOk())

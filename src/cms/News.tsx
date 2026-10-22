@@ -151,7 +151,7 @@ function NewsToolbar({ editing = false }: { editing?: boolean }) {
       {editing ? (
         <ShowButton label="Просмотр" />
       ) : (
-        <EditButton label="Редактировать" disabled={record?.deleted} />
+        <EditButton label="Редактировать" disabled={record?.deleted || !record?.canEdit} />
       )}
       {record && <VisibilityAction newsId={record.id} hidden={record.deleted} />}
     </TopToolbar>

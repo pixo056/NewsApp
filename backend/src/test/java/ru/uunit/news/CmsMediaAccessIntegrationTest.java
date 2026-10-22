@@ -171,7 +171,7 @@ class CmsMediaAccessIntegrationTest {
     denied(editorialPhoto, null);
     cms.editNews(id, admin(), input(group, List.of(editorialPhoto)));
     readable(editorialPhoto, author);
-    denied(editorialPhoto, owner());
+    readable(editorialPhoto, owner());
     denied(editorialPhoto, unrelated);
     denied(editorialPhoto, null);
     cms.visibility(id, admin(), true);
@@ -187,7 +187,7 @@ class CmsMediaAccessIntegrationTest {
     UUID group = group();
     UUID photo = photo(author);
     UUID id = create(author, group, List.of(photo), false);
-    denied(photo, owner());
+    readable(photo, owner());
     cms.visibility(id, admin(), true);
     communities.settings(group, admin(), 5, true);
     denied(photo, owner());

@@ -40,7 +40,13 @@ public class NewsService {
   }
 
   public boolean moderator(Map<String, Object> row, Accounts.User user) {
-    return accounts.admin(user);
+    return (
+      accounts.admin(user) ||
+      (user != null &&
+        row.get("community_id") != null &&
+        !Boolean.TRUE.equals(row.get("official")) &&
+        user.id().equals(row.get("owner_id")))
+    );
   }
 
   private boolean editorialAuthor(Map<String, Object> row, Accounts.User user) {

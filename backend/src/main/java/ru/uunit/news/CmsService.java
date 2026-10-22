@@ -139,7 +139,6 @@ public class CmsService {
     if (accounts.admin(user)) return;
     if (
       resource.equals("audit") ||
-      resource.equals("reports") ||
       db.queryForObject(
         "SELECT count(*) FROM communities WHERE owner_id=? AND NOT official",
         Integer.class,
@@ -153,8 +152,7 @@ public class CmsService {
     args.add(user.id());
     String scope = "c.owner_id=? AND NOT c.official";
     if (resource.equals("news")) {
-      args.add(user.id());
-      scope += " AND n.author_id=? AND NOT n.deleted";
+      scope += " AND NOT n.deleted";
     }
     return scope;
   }
@@ -271,7 +269,7 @@ public class CmsService {
         result.putAll(news.view(row, user));
         result.put("publishedAt", instant(row.get("published_at")));
         result.put("deleted", row.get("deleted"));
-        result.put("canEdit", true);
+        result.put("canEdit", accounts.admin(user) || user.id().equals(row.get("author_id")));
         result.put(
           "mediaIds",
           db.queryForList(
@@ -340,6 +338,8 @@ public class CmsService {
     String where = " WHERE " + scope("news", user, args);
     List<Object> groupArgs = new ArrayList<>();
     String groupWhere = " WHERE " + scope("communities", user, groupArgs);
+    List<Object> reportArgs = new ArrayList<>();
+    String reportWhere = " WHERE " + scope("reports", user, reportArgs);
     return Map.of(
       "news",
       db.queryForObject(
@@ -356,15 +356,13 @@ public class CmsService {
         args.toArray()
       ),
       "reports",
-      accounts.admin(user)
-        ? db.queryForObject(
-            "SELECT count(*) FROM reports r JOIN news n ON n.id=r.news_id LEFT JOIN communities c ON c.id=n.community_id" +
-              where +
-              " AND r.status='pending'",
-            Long.class,
-            args.toArray()
-          )
-        : 0L,
+      db.queryForObject(
+        "SELECT count(*) FROM reports r JOIN news n ON n.id=r.news_id LEFT JOIN communities c ON c.id=n.community_id" +
+          reportWhere +
+          " AND r.status='pending'",
+        Long.class,
+        reportArgs.toArray()
+      ),
       "communities",
       db.queryForObject(
         "SELECT count(*) FROM communities c" + groupWhere,
@@ -408,7 +406,8 @@ public class CmsService {
 
   @Transactional
   public Map<String, Object> visibility(UUID id, Accounts.User user, boolean hidden) {
-    if (!accounts.admin(user)) throw ApiException.forbidden();
+    // Only platform administration can reverse a hide, including its own intervention.
+    if (!hidden && !accounts.admin(user)) throw ApiException.forbidden();
     access("news", user);
     Map<String, Object> row = lockNews(id, user);
     if (!Objects.equals(row.get("deleted"), hidden)) {
@@ -420,7 +419,9 @@ public class CmsService {
         hidden ? "Новость скрыта" : "Новость восстановлена"
       );
     }
-    return detail("news", id, user);
+    // Hidden items intentionally disappear from the owner's read scope.
+    // Do not re-read through that scope after hiding and roll the operation back.
+    return accounts.admin(user) ? detail("news", id, user) : Map.of("id", id, "deleted", true);
   }
 
   @Transactional
